@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TF-IDF分数最高的20个词详情</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: Arial, sans-serif; 
+            background-color: #f0f2f5; 
+        }
+        .container { 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); 
+            padding: 30px; 
+            margin: 20px auto; 
+            max-width: 1000px;
+            position: relative;
+        }
+        h2 { 
+            margin: 0 0 20px 0; 
+            color: #333; 
+        }
+        .btn-back { 
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 8px 16px; 
+            background-color: #fff; 
+            color: #333; 
+            border: 1px solid #d9d9d9; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn-back:hover { 
+            color: #1890ff;
+            border-color: #1890ff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ebeef5;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f5f7fa;
+        }
+        /* 前3名稍微高亮一下 */
+        tr:nth-child(1) td, tr:nth-child(2) td, tr:nth-child(3) td {
+            background-color: #e6f7ff;
+        }
+        tr:nth-child(1):hover td, tr:nth-child(2):hover td, tr:nth-child(3):hover td {
+            background-color: #bae7ff;
+        }
+        #loading { text-align: center; color: #666; padding: 50px; }
+    </style>
+    <script src="../static/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .btn-download {
+            padding: 8px 16px;
+            background-color: #52c41a;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn-download:hover {
+            background-color: #73d13d;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-actions">
+        <a href="tfidf_analysis.html" class="btn-back" style="margin-bottom: 0;">← 返回分析页</a>
+        <button id="downloadBtn" class="btn-download" style="display: none;">下载详情结果</button>
+    </div>
+    <h2>TF-IDF分数最高的20个词详情</h2>
+    
+    <div id="loading">正在加载数据...</div>
+    
+    <table id="data-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>排名</th>
+                <th>词语</th>
+                <th>TF-IDF分数</th>
+            </tr>
+        </thead>
+        <tbody id="table-body">
+            <!-- 数据将通过 JS 动态插入 -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    async function init() {
+        try {
+            // 请求与原图表相同的后端接口
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/tfidf');
+            let data = res.data.data;
+            
+            // 屏蔽"花间"这个词
+            data = data.filter(d => d.word !== '花间');
+            
+            // 后端接口返回的是排好序的最多 30 个词，我们取前 20 个
+            data = data.slice(0, 20);
+            
+            const tbody = document.getElementById('table-body');
+            let htmlContent = '';
+            
+            data.forEach((item, index) => {
+                // 将浮点数格式化为3位小数，使其显示类似于 0.943
+                const score = item.weight.toFixed(3);
+                htmlContent += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${item.word}</td>
+                        <td>${score}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = htmlContent;
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('data-table').style.display = 'table';
+            
+            const downloadBtn = document.getElementById('downloadBtn');
+            downloadBtn.style.display = 'inline-block';
+            downloadBtn.onclick = function() {
+                // Prepare data for Excel
+                const wsData = [
+                    ['排名', '词语', 'TF-IDF分数']
+                ];
+                data.forEach((item, index) => {
+                    wsData.push([index + 1, item.word, Number(item.weight.toFixed(3))]);
+                });
+                
+                // Create workbook and worksheet
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                XLSX.utils.book_append_sheet(wb, ws, "Top20 Words");
+                
+                // Download file
+                XLSX.writeFile(wb, "tfidf_top20.xlsx");
+            };
+
+        } catch(e) {
+            document.getElementById('loading').innerText = '数据加载失败，请检查网络或后端服务。';
+        }
+    }
+    
+    window.onload = init;
+</script>
+
+</body>
+</html>

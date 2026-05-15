@@ -1,0 +1,4 @@
+在文件夹地址栏中 输入 cmd
+在弹出的命令框中运行如下指令 即可安装项目所需的全部依赖：
+
+pip install -r requirements.txt

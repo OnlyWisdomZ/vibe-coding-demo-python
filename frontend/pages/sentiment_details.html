@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>情感分析详细数据</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; position: relative;}
+        h3 { margin-top: 0; color: #333; font-size: 20px;}
+        .btn { padding: 10px 20px; background-color: #409eff; color: #fff; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; margin-right: 15px; margin-bottom: 10px; font-size: 14px;}
+        .btn:hover { background-color: #66b1ff; }
+        .btn-back { position: absolute; top: 20px; right: 20px; background-color: #fff; color: #606266; border: 1px solid #dcdfe6; margin: 0;}
+        .btn-back:hover { background-color: #f5f7fa; color: #409eff; border-color: #c6e2ff;}
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ebeef5; border-right: 1px solid #ebeef5; border-left: 1px solid #ebeef5;}
+        th { background-color: #f5f7fa; font-weight: bold; color: #333; border-top: 1px solid #ebeef5;}
+        tr:hover { background-color: #f5f7fa; }
+        
+        .pos { color: #67c23a; font-weight: bold; }
+        .neg { color: #f56c6c; font-weight: bold; }
+        .neutral { color: #e6a23c; font-weight: bold; }
+        
+        #loading { text-align: center; font-size: 16px; color: #666; padding: 40px; }
+    </style>
+    <script src="../static/axios.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h3>下载分析结果</h3>
+    <button class="btn btn-back" onclick="history.back()">返回</button>
+    <div style="margin-top: 20px;">
+        <a href="http://127.0.0.1:8000/api/analysis/download_sentiment?type=pos" class="btn" target="_blank">下载积极评论.xlsx</a>
+        <a href="http://127.0.0.1:8000/api/analysis/download_sentiment?type=neg" class="btn" target="_blank">下载消极评论.xlsx</a>
+    </div>
+</div>
+
+<div class="container">
+    <h3>详细数据</h3>
+    <div id="loading">正在加载数据...</div>
+    <div style="overflow-x: auto;">
+        <table id="dataTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th width="70%">内容</th>
+                    <th width="15%">情感类型</th>
+                    <th width="15%">情感分数</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    async function loadData() {
+        try {
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/sentiment');
+            const scores = res.data.data.all_scores;
+            
+            const tbody = document.getElementById('tableBody');
+            
+            // 过滤掉没有文本的，按分数排序，并截取前1000条展示以避免卡顿
+            let validScores = scores.filter(item => item.text && item.category !== 'neutral');
+            
+            validScores.forEach(item => {
+                const tr = document.createElement('tr');
+                
+                const typeClass = item.category === 'pos' ? 'pos' : 'neg';
+                const typeText = item.category === 'pos' ? '积极' : '消极';
+                
+                tr.innerHTML = `
+                    <td>${item.text}</td>
+                    <td class="${typeClass}">${typeText}</td>
+                    <td>${item.score.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dataTable').style.display = 'table';
+            
+        } catch (error) {
+            document.getElementById('loading').innerText = '数据加载失败，请重试';
+            console.error(error);
+        }
+    }
+    
+    window.onload = loadData;
+</script>
+</body>
+</html>

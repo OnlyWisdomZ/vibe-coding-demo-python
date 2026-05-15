@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>主题寻优与困惑度分析</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 30px; margin-bottom: 20px; }
+        .header { position: relative; }
+        h2 { color: #333; margin: 0 0 20px 0; font-size: 22px; }
+        h3 { color: #409eff; font-size: 18px; margin-top: 30px; margin-bottom: 15px; }
+        .btn-back { position: absolute; top: 0; right: 0; background-color: #fff; color: #606266; border: 1px solid #dcdfe6; padding: 8px 16px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px; }
+        .btn-back:hover { background-color: #f5f7fa; color: #409eff; border-color: #c6e2ff; }
+        .charts-wrapper { display: flex; justify-content: space-between; gap: 20px; }
+        .chart-box { flex: 1; height: 360px; border: 1px solid #ebeef5; padding: 10px; border-radius: 4px; }
+        .summary-box { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 20px; border-radius: 8px; background-color: #f7fbff; border: 1px solid #d9ecff; line-height: 1.9; }
+        .summary-box strong { color: #409eff; }
+        .topic-picker { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+        .topic-picker select { padding: 8px 12px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px; }
+        .tips { color: #666; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ebeef5; border-right: 1px solid #ebeef5; border-left: 1px solid #ebeef5; }
+        th { background-color: #409eff; color: #fff; font-weight: bold; border-top: 1px solid #ebeef5; }
+        tr:hover { background-color: #f5f7fa; }
+        .btn-group { display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            padding: 12px 25px;
+            font-size: 15px;
+            color: #fff;
+            background-color: #409eff;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn:hover { background-color: #66b1ff; }
+        .btn-neg { background-color: #f56c6c; }
+        .btn-neg:hover { background-color: #f78989; }
+        .btn-all { background-color: #67c23a; }
+        .btn-all:hover { background-color: #85ce61; }
+        #loading { text-align: center; color: #666; padding: 40px; font-size: 16px; white-space: pre-line; }
+    </style>
+    <script src="../static/axios.min.js"></script>
+    <script src="../static/echarts.min.js"></script>
+</head>
+<body>
+
+<div class="container header">
+    <h2>主题寻优与困惑度分析</h2>
+    <a href="lda_analysis.html" class="btn-back">返回 LDA 分析</a>
+    <div class="tips">困惑度越低通常越好，一致性越高通常越好。推荐主题数按一致性优先、困惑度辅助确定。</div>
+</div>
+
+<div class="container" id="loading">正在分析模型数据，首次加载可能需要几十秒，请耐心等待...</div>
+
+<div class="container" id="content" style="display:none;">
+    <div class="charts-wrapper">
+        <div id="chart-perplexity" class="chart-box"></div>
+        <div id="chart-coh" class="chart-box"></div>
+    </div>
+
+    <div class="summary-box" style="margin-top: 20px;">
+        <div id="model-summary"></div>
+        <div class="topic-picker">
+            <label for="topic-count-select">查看主题数</label>
+            <select id="topic-count-select"></select>
+        </div>
+    </div>
+
+    <h3 id="keyword-title">主题关键词分析</h3>
+    <table>
+        <thead>
+            <tr>
+                <th width="15%">主题编号</th>
+                <th>关键词</th>
+            </tr>
+        </thead>
+        <tbody id="keyword-tbody"></tbody>
+    </table>
+
+    <h3 style="text-align: center; margin-top: 40px;">按当前主题数查看交互式主题图表</h3>
+    <div class="btn-group">
+        <a href="lda_positive.html" class="btn" id="link-pos">积极评论 LDA 主题分析</a>
+        <a href="lda_negative.html" class="btn btn-neg" id="link-neg">消极评论 LDA 主题分析</a>
+        <a href="lda_all.html" class="btn btn-all" id="link-all">所有评论 LDA 主题分析</a>
+    </div>
+</div>
+
+<script>
+    let pollTimer = null;
+    let ldaSummaryData = null;
+
+    function setLoadingText(message) {
+        document.getElementById('loading').innerText = message;
+    }
+
+    function formatTaskMessage(task, fallbackMessage) {
+        if (!task) {
+            return fallbackMessage || '正在分析模型数据，请稍候...';
+        }
+
+        let message = task.message || fallbackMessage || '正在分析模型数据，请稍候...';
+        if (task.total) {
+            message += `\n当前进度：${task.current || 0}/${task.total} (${task.percent || 0}%)`;
+        }
+        return message;
+    }
+
+    function scheduleRetry() {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loadData, 2000);
+    }
+
+    function getTopicCountFromUrl() {
+        const value = parseInt(new URLSearchParams(window.location.search).get('topics'), 10);
+        return Number.isFinite(value) ? value : null;
+    }
+
+    function updateVisualizationLinks(topicCount) {
+        document.getElementById('link-pos').href = `lda_positive.html?topics=${topicCount}`;
+        document.getElementById('link-neg').href = `lda_negative.html?topics=${topicCount}`;
+        document.getElementById('link-all').href = `lda_all.html?topics=${topicCount}`;
+    }
+
+    function renderTopicTable(topicCount) {
+        if (!ldaSummaryData) {
+            return;
+        }
+
+        const topics = ldaSummaryData.topics_by_count[String(topicCount)] || [];
+        document.getElementById('keyword-title').innerText = `${topicCount} 个主题下的关键词分析`;
+
+        const tbody = document.getElementById('keyword-tbody');
+        tbody.innerHTML = '';
+
+        topics.forEach(topic => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${topic.topic_id}</td>
+                <td>${topic.keywords}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        updateVisualizationLinks(topicCount);
+    }
+
+    function renderSelector(data) {
+        const select = document.getElementById('topic-count-select');
+        const requestedTopicCount = getTopicCountFromUrl();
+        const selectedTopicCount = data.topic_numbers.includes(requestedTopicCount)
+            ? requestedTopicCount
+            : data.recommended_topic_count;
+
+        select.innerHTML = '';
+        data.topic_numbers.forEach(topicCount => {
+            const option = document.createElement('option');
+            option.value = topicCount;
+            option.textContent = topicCount === data.recommended_topic_count
+                ? `${topicCount}（推荐）`
+                : `${topicCount}`;
+            if (topicCount === selectedTopicCount) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        select.onchange = () => {
+            const currentTopicCount = parseInt(select.value, 10);
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set('topics', currentTopicCount);
+            window.history.replaceState({}, '', nextUrl.toString());
+            renderTopicTable(currentTopicCount);
+        };
+
+        renderTopicTable(selectedTopicCount);
+    }
+
+    function renderSummary(data) {
+        const meta = data.meta || {};
+        document.getElementById('model-summary').innerHTML = `
+            <div><strong>推荐主题数：</strong>${data.recommended_topic_count}</div>
+            <div><strong>一致性最优：</strong>${data.best_topic_count_by_coherence}</div>
+            <div><strong>困惑度最优：</strong>${data.best_topic_count_by_perplexity}</div>
+            <div><strong>有效文本数：</strong>${meta.documents || 0}；<strong>词汇表大小：</strong>${meta.vocabulary_size || 0}</div>
+        `;
+    }
+
+    function renderCharts(data) {
+        ldaSummaryData = data;
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+
+        renderSummary(data);
+        renderSelector(data);
+
+        setTimeout(() => {
+            const perplexityChart = echarts.init(document.getElementById('chart-perplexity'));
+            perplexityChart.setOption({
+                title: { text: '主题寻优-困惑度曲线', left: 'center', textStyle: {fontSize: 14, fontWeight: 'normal'} },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: data.topic_numbers, name: '主题数目', nameLocation: 'middle', nameGap: 25 },
+                yAxis: { type: 'value', name: '困惑度', nameLocation: 'middle', nameGap: 45, scale: true },
+                series: [{ data: data.perplexity, type: 'line', symbol: 'circle', symbolSize: 6 }]
+            });
+
+            const cohChart = echarts.init(document.getElementById('chart-coh'));
+            cohChart.setOption({
+                title: { text: '主题寻优-一致性曲线', left: 'center', textStyle: {fontSize: 14, fontWeight: 'normal'} },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: data.topic_numbers, name: '主题数目', nameLocation: 'middle', nameGap: 25 },
+                yAxis: { type: 'value', name: '一致性大小', nameLocation: 'middle', nameGap: 35, scale: true },
+                series: [{ data: data.coherence, type: 'line', symbol: 'circle', symbolSize: 6 }]
+            });
+
+            window.addEventListener('resize', () => {
+                perplexityChart.resize();
+                cohChart.resize();
+            });
+        }, 50);
+    }
+
+    async function loadData() {
+        try {
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/lda_summary', {
+                validateStatus: () => true
+            });
+
+            if (res.status === 202 || res.data.code === 202) {
+                setLoadingText(formatTaskMessage(res.data.data, res.data.message));
+                scheduleRetry();
+                return;
+            }
+
+            if (res.status === 200 && res.data.code === 200) {
+                clearTimeout(pollTimer);
+                renderCharts(res.data.data);
+                return;
+            }
+
+            setLoadingText(res.data.message || 'LDA 数据加载失败，请稍后重试。');
+        } catch (error) {
+            setLoadingText('数据加载失败，请重试或检查后端服务。');
+            console.error(error);
+        }
+    }
+
+    window.onload = loadData;
+</script>
+
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>华住会评论分析系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="static/axios.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- 左侧菜单 -->
+        <div class="sidebar">
+            <div class="logo">📊 华住会评论分析</div>
+            <div class="menu">
+                
+                <div class="menu-group">
+                    <div class="menu-title">总览</div>
+                    <a class="menu-item active" data-url="pages/overview.html" onclick="loadPage(this, '数据概览')">❖ 数据概览</a>
+                </div>
+
+                <div class="menu-group">
+                    <div class="menu-title">基础数据分析</div>
+                    <a class="menu-item" data-url="pages/b1_member.html" onclick="loadPage(this, '消费者会员等级分布与消费特征分析')">📊 会员等级与消费特征</a>
+                    <a class="menu-item" data-url="pages/b2_room.html" onclick="loadPage(this, '酒店房型入住频次与偏好分析')">🏨 房型频次与偏好</a>
+                    <a class="menu-item" data-url="pages/b3_satisfaction.html" onclick="loadPage(this, '消费者满意度统计分析')">😊 满意度统计分析</a>
+                    <a class="menu-item" data-url="pages/b4_time.html" onclick="loadPage(this, '评论发布时间与入住时段特征分析')">📅 发布与入住时段</a>
+                    <a class="menu-item" data-url="pages/b5_tags.html" onclick="loadPage(this, '酒店好评/差评标签高频词统计分析')">🏷️ 好差评标签高频词</a>
+                    <a class="menu-item" data-url="pages/b6_interaction.html" onclick="loadPage(this, '评论图片与商家互动')">📸 评论图片与商家互动</a>
+                    <a class="menu-item" data-url="pages/b7_city.html" onclick="loadPage(this, '同一省份酒店多维对比分析')">🗺️ 同省酒店对比分析</a>
+                </div>
+
+                <div class="menu-group">
+                    <div class="menu-title">深度文本分析</div>
+                    <a class="menu-item" data-url="pages/tfidf_analysis.html" onclick="loadPage(this, 'TF-IDF 特征词分析')">📑 TF-IDF 特征词</a>
+                    <a class="menu-item" data-url="pages/sentiment_analysis.html" onclick="loadPage(this, 'SnowNLP 情感分析')">😊 SnowNLP 情感分析</a>
+                    <a class="menu-item" data-url="pages/lda_analysis.html" onclick="loadPage(this, 'LDA 主题分析')">🧩 LDA 主题分析</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-wrapper">
+            <!-- 头部 -->
+            <div class="header">
+                <div class="page-title" id="page-title">数据概览</div>
+                <div class="user-info">
+                    <span id="username-display">Admin</span>
+                    <button class="logout-btn" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <!-- 内容容器 -->
+            <div class="content-area">
+                <iframe id="content-iframe" src="pages/overview.html"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 权限校验
+        if (!localStorage.getItem('token')) {
+            window.location.href = 'login.html';
+        }
+
+        document.getElementById('username-display').innerText = localStorage.getItem('username') || 'Admin';
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+            window.location.href = 'login.html';
+        }
+
+        function loadPage(element, title) {
+            document.getElementById('page-title').innerText = title;
+            document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('content-iframe').src = element.getAttribute('data-url');
+        }
+    </script>
+</body>
+</html>

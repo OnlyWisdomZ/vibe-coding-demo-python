@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .row { display: flex; gap: 20px; margin-bottom: 20px; }
+        .chart-container { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 20px; }
+        .chart { width: 100%; height: 400px; }
+        h3 { margin: 0 0 15px 0; color: #333; text-align: center; }
+        .stats-info { text-align: center; margin-bottom: 20px; color: #666; font-size: 16px; }
+        .highlight { color: #ee6666; font-weight: bold; font-size: 24px; margin: 0 5px; }
+    </style>
+    <script src="../static/echarts.min.js"></script>
+    <script src="../static/axios.min.js"></script>
+</head>
+<body>
+
+<div class="row">
+    <div class="chart-container">
+        <h3>消费者满意度统计分析 (基于标签与评价内容)</h3>
+        <div id="stats" class="stats-info"></div>
+        <div id="c1" class="chart"></div>
+    </div>
+</div>
+
+<script>
+    async function init() {
+        const c1 = echarts.init(document.getElementById('c1'));
+        const res = await axios.get('http://127.0.0.1:8000/api/analysis/b3_satisfaction');
+        const data = res.data.data;
+
+        document.getElementById('stats').innerHTML = `
+            本次分析共计覆盖 <span class="highlight">${data.total}</span> 条真实消费者评价
+        `;
+
+        c1.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}: {c} 条 ({d}%)' },
+            legend: { orient: 'vertical', left: 'left' },
+            series: [
+                {
+                    name: '满意度',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 10,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: { show: true, formatter: '{b}\n{d}%' },
+                    data: [
+                        { value: data.distribution.find(d=>d.name.includes("非常满意")).value, name: '非常满意', itemStyle: {color: '#91cc75'} },
+                        { value: data.distribution.find(d=>d.name.includes("满意(好评)")).value, name: '满意', itemStyle: {color: '#73c0de'} },
+                        { value: data.distribution.find(d=>d.name.includes("中性")).value, name: '中性/一般', itemStyle: {color: '#fac858'} },
+                        { value: data.distribution.find(d=>d.name.includes("不满意")).value, name: '不满意', itemStyle: {color: '#ee6666'} }
+                    ]
+                }
+            ]
+        });
+
+        window.addEventListener('resize', () => { c1.resize(); });
+    }
+    window.onload = init;
+</script>
+</body>
+</html>

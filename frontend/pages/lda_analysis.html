@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>LDA主题分析</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .container { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 30px; margin-bottom: 20px; }
+        h2 { color: #333; margin-top: 0; margin-bottom: 20px; font-size: 22px; }
+        h3 { color: #409eff; font-size: 18px; margin-top: 30px; margin-bottom: 15px;}
+        .charts-wrapper { display: flex; justify-content: space-between; gap: 20px; }
+        .chart-box { flex: 1; height: 350px; border: 1px solid #ebeef5; padding: 10px; border-radius: 4px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ebeef5; border-right: 1px solid #ebeef5; border-left: 1px solid #ebeef5; }
+        th { background-color: #409eff; color: #fff; font-weight: bold; border-top: 1px solid #ebeef5; }
+        tr:hover { background-color: #f5f7fa; }
+
+        .btn-group { display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            padding: 12px 25px;
+            font-size: 15px;
+            color: #fff;
+            background-color: #409eff;
+            border: none;
+            border-radius: 4px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn:hover { background-color: #66b1ff; }
+        .btn-neg { background-color: #f56c6c; }
+        .btn-neg:hover { background-color: #f78989; }
+        .btn-all { background-color: #67c23a; }
+        .btn-all:hover { background-color: #85ce61; }
+        .btn-opt { background-color: #e6a23c; }
+        .btn-opt:hover { background-color: #ebb563; }
+
+        #loading { text-align: center; color: #666; padding: 40px; font-size: 16px; white-space: pre-line; }
+    </style>
+    <script src="../static/axios.min.js"></script>
+    <script src="../static/echarts.min.js"></script>
+</head>
+<body>
+
+<div class="container" id="loading">正在分析模型数据，首次加载可能需要几十秒，请耐心等待...</div>
+
+<div class="container" id="content" style="display: none;">
+    <h2>主题建模评估</h2>
+    <div style="text-align: center; margin-bottom: 15px; font-weight: bold; color: #333;">主题数量与相似度、一致性关系</div>
+    <div class="charts-wrapper">
+        <div id="chart-sim" class="chart-box"></div>
+        <div id="chart-coh" class="chart-box"></div>
+    </div>
+
+    <h3>主题关键词分析</h3>
+    <table>
+        <thead>
+            <tr>
+                <th width="15%">主题编号</th>
+                <th>关键词</th>
+            </tr>
+        </thead>
+        <tbody id="keyword-tbody">
+        </tbody>
+    </table>
+
+    <h3 style="text-align: center; margin-top: 40px;">查看交互式主题图表</h3>
+    <div class="btn-group">
+        <a href="lda_positive.html" class="btn">积极评论 LDA 主题分析</a>
+        <a href="lda_negative.html" class="btn btn-neg">消极评论 LDA 主题分析</a>
+        <a href="lda_all.html" class="btn btn-all">所有评论 LDA 主题分析</a>
+        <a href="lda_topic_opt.html" class="btn btn-opt">主题寻优与困惑度分析</a>
+    </div>
+</div>
+
+<script>
+    let pollTimer = null;
+
+    function setLoadingText(message) {
+        document.getElementById('loading').innerText = message;
+    }
+
+    function formatTaskMessage(task, fallbackMessage) {
+        if (!task) {
+            return fallbackMessage || '正在分析模型数据，请稍候...';
+        }
+
+        let message = task.message || fallbackMessage || '正在分析模型数据，请稍候...';
+        if (task.total) {
+            message += `\n当前进度：${task.current || 0}/${task.total} (${task.percent || 0}%)`;
+        }
+        return message;
+    }
+
+    function scheduleRetry() {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(loadData, 2000);
+    }
+
+    function renderCharts(data) {
+        const xAxisData = data.topic_numbers || [1, 2, 3, 4, 5, 6, 7, 8];
+        const tbody = document.getElementById('keyword-tbody');
+        tbody.innerHTML = '';
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+
+        setTimeout(() => {
+            const simChart = echarts.init(document.getElementById('chart-sim'));
+            simChart.setOption({
+                title: { text: '主题建模-相似度', left: 'center', textStyle: {fontSize: 14, fontWeight: 'normal'} },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: xAxisData, name: '主题数目', nameLocation: 'middle', nameGap: 25 },
+                yAxis: { type: 'value', name: '平均余弦相似度', nameLocation: 'middle', nameGap: 35, scale: true },
+                series: [{ data: data.similarity, type: 'line', symbol: 'circle', symbolSize: 6 }]
+            });
+
+            const cohChart = echarts.init(document.getElementById('chart-coh'));
+            cohChart.setOption({
+                title: { text: '主题建模-一致性', left: 'center', textStyle: {fontSize: 14, fontWeight: 'normal'} },
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: xAxisData, name: '主题数目', nameLocation: 'middle', nameGap: 25 },
+                yAxis: { type: 'value', name: '一致性大小', nameLocation: 'middle', nameGap: 35, scale: true },
+                series: [{ data: data.coherence, type: 'line', symbol: 'circle', symbolSize: 6 }]
+            });
+
+            (data.topics || []).forEach(topic => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${topic.topic_id}</td>
+                    <td>${topic.keywords}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            window.addEventListener('resize', () => {
+                simChart.resize();
+                cohChart.resize();
+            });
+        }, 50);
+    }
+
+    async function loadData() {
+        try {
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/lda_summary', {
+                validateStatus: () => true
+            });
+
+            if (res.status === 202 || res.data.code === 202) {
+                setLoadingText(formatTaskMessage(res.data.data, res.data.message));
+                scheduleRetry();
+                return;
+            }
+
+            if (res.status === 200 && res.data.code === 200) {
+                clearTimeout(pollTimer);
+                renderCharts(res.data.data);
+                return;
+            }
+
+            setLoadingText(res.data.message || 'LDA 数据加载失败，请稍后重试。');
+        } catch (error) {
+            setLoadingText('数据加载失败，请重试或检查后端服务。');
+            console.error(error);
+        }
+    }
+
+    window.onload = loadData;
+</script>
+
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>积极与消极情感分数分布</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: Arial, sans-serif; 
+            background-color: #f0f2f5; 
+        }
+        .container { 
+            background: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); 
+            padding: 30px; 
+            margin: 20px auto; 
+            max-width: 1000px;
+        }
+        h2 { 
+            margin: 0 0 20px 0; 
+            color: #333; 
+            text-align: center;
+        }
+        .btn-back { 
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 8px 16px; 
+            background-color: #fff; 
+            color: #333; 
+            border: 1px solid #d9d9d9; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .btn-back:hover { 
+            color: #1890ff;
+            border-color: #1890ff;
+        }
+        .chart { 
+            width: 100%; 
+            height: 600px; 
+        }
+        #loading { text-align: center; color: #666; padding: 50px; font-size: 16px;}
+    </style>
+    <script src="../static/echarts.min.js"></script>
+    <script src="../static/axios.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <a href="sentiment_analysis.html" class="btn-back">← 返回情感分析</a>
+    <h2>情感分数分布</h2>
+    
+    <div id="loading">正在加载分布数据...</div>
+    <div id="c1" class="chart" style="display:none;"></div>
+</div>
+
+<script>
+    // ECharts 箱线图需要计算 [min, Q1, median, Q3, max]
+    // 这是一个简单的帮助函数
+    function calculateBoxplotData(dataArray) {
+        if (!dataArray || dataArray.length === 0) return [];
+        dataArray.sort((a, b) => a - b);
+        
+        function quantile(q) {
+            const pos = (dataArray.length - 1) * q;
+            const base = Math.floor(pos);
+            const rest = pos - base;
+            if (dataArray[base + 1] !== undefined) {
+                return dataArray[base] + rest * (dataArray[base + 1] - dataArray[base]);
+            } else {
+                return dataArray[base];
+            }
+        }
+        
+        const min = dataArray[0];
+        const max = dataArray[dataArray.length - 1];
+        const q1 = quantile(0.25);
+        const median = quantile(0.5);
+        const q3 = quantile(0.75);
+        
+        return [min, q1, median, q3, max];
+    }
+
+    async function init() {
+        try {
+            // 请求情感分析接口获取原始分数
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/sentiment');
+            const data = res.data.data;
+            
+            if(!data.all_scores || data.all_scores.length === 0) {
+                document.getElementById('loading').innerText = '当前后端数据未包含详细分数信息，请确保后端服务已重启。';
+                return;
+            }
+
+            const posScores = [];
+            const negScores = [];
+            const neuScores = [];
+            
+            data.all_scores.forEach(item => {
+                if (item.category === 'pos') posScores.push(item.score);
+                else if (item.category === 'neg') negScores.push(item.score);
+                else neuScores.push(item.score);
+            });
+
+            // 计算箱线图数据
+            const posBox = calculateBoxplotData(posScores);
+            const negBox = calculateBoxplotData(negScores);
+            const neuBox = calculateBoxplotData(neuScores);
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('c1').style.display = 'block';
+
+            const myChart = echarts.init(document.getElementById('c1'));
+            
+            myChart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function (param) {
+                        return [
+                            param.name + ': ',
+                            '最大值: ' + param.data[5].toFixed(4),
+                            'Q3: ' + param.data[4].toFixed(4),
+                            '中位数: ' + param.data[3].toFixed(4),
+                            'Q1: ' + param.data[2].toFixed(4),
+                            '最小值: ' + param.data[1].toFixed(4)
+                        ].join('<br/>');
+                    }
+                },
+                grid: {
+                    left: '10%',
+                    right: '10%',
+                    bottom: '15%'
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['pos', 'neg', 'neutral'],
+                    boundaryGap: true,
+                    nameGap: 30,
+                    splitArea: { show: false },
+                    axisLabel: { formatter: '{value}' },
+                    name: '情感类型'
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '情感分数',
+                    min: -0.05,
+                    max: 1.05
+                },
+                series: [
+                    {
+                        name: 'boxplot',
+                        type: 'boxplot',
+                        data: [
+                            {
+                                value: posBox,
+                                itemStyle: { color: '#4b648f', borderColor: '#333' }
+                            },
+                            {
+                                value: negBox,
+                                itemStyle: { color: '#277f7c', borderColor: '#333' }
+                            },
+                            {
+                                value: neuBox,
+                                itemStyle: { color: '#888', borderColor: '#333' }
+                            }
+                        ]
+                    }
+                ]
+            });
+            
+            window.addEventListener('resize', () => myChart.resize());
+
+        } catch(e) {
+            document.getElementById('loading').innerText = '数据加载失败，请检查网络或后端服务。';
+        }
+    }
+    window.onload = init;
+</script>
+
+</body>
+</html>

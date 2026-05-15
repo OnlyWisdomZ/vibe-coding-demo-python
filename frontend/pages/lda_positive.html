@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>积极评论 LDA 主题分析可视化</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .header { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 15px 20px; margin-bottom: 20px; position: relative;}
+        h2 { margin: 0; color: #333; font-size: 18px;}
+        .btn-back { position: absolute; top: 15px; right: 20px; background-color: #fff; color: #606266; border: 1px solid #dcdfe6; padding: 6px 15px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px;}
+        .btn-back:hover { background-color: #f5f7fa; color: #409eff; border-color: #c6e2ff;}
+        #iframe-container { width: 100%; height: 800px; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); overflow: hidden;}
+        iframe { width: 100%; height: 100%; border: none;}
+        #loading { padding: 40px; text-align: center; color: #666;}
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>积极评论 LDA 主题分析可视化</h2>
+    <a href="lda_analysis.html" class="btn-back">返回上一页</a>
+</div>
+
+<div id="iframe-container">
+    <div id="loading">由于需要进行模型训练和计算，这大约需要几十秒的时间，请耐心等待...</div>
+    <iframe id="lda-frame" src="" style="display:none;"></iframe>
+</div>
+
+<script>
+    window.onload = function() {
+        const iframe = document.getElementById('lda-frame');
+        iframe.src = "http://127.0.0.1:8000/api/analysis/lda_pyldavis?type=pos";
+        
+        iframe.onload = function() {
+            document.getElementById('loading').style.display = 'none';
+            iframe.style.display = 'block';
+        };
+    };
+</script>
+
+</body>
+</html>

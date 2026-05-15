@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .row { display: flex; gap: 20px; margin-bottom: 20px; position: relative; }
+        .chart-container { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 20px; position: relative;}
+        .chart { width: 100%; height: 400px; }
+        h3 { margin: 0 0 15px 0; color: #333; text-align: center; }
+        #loading { text-align: center; font-size: 16px; color: #666; margin-bottom: 20px; }
+        .btn-detail { position: absolute; top: 20px; right: 20px; padding: 6px 12px; background-color: #1890ff; color: #fff; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 12px; z-index: 10;}
+        .btn-detail:hover { background-color: #40a9ff; }
+        .btn-download { position: absolute; top: 20px; right: 20px; padding: 6px 12px; background-color: #67c23a; color: #fff; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 12px; z-index: 10;}
+        .btn-download:hover { background-color: #85ce61; }
+    </style>
+    <script src="../static/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+    <script src="../static/axios.min.js"></script>
+</head>
+<body>
+
+<div id="loading">正在对全表数据进行深度情感分析(SnowNLP)，这可能需要1~3分钟时间，请耐心等待...</div>
+
+<div class="row" style="display:none;" id="main-content">
+    <!-- 饼图：整体情感倾向 -->
+    <div class="chart-container">
+        <h3>整体情感倾向分布</h3>
+        <a href="sentiment_details.html" class="btn-detail">查看评论情感结果</a>
+        <div id="c1" class="chart"></div>
+    </div>
+    <!-- 柱状图：情感分数区间分布 -->
+    <div class="chart-container">
+        <h3>情感分数区间分布</h3>
+        <a href="sentiment_boxplot.html" class="btn-detail">查看分数分布箱线图</a>
+        <div id="c2" class="chart"></div>
+    </div>
+</div>
+
+<div class="row" style="display:none;" id="cloud-content">
+    <!-- 积极词云 -->
+    <div class="chart-container">
+        <h3>积极评论词云</h3>
+        <a href="http://127.0.0.1:8000/api/analysis/download_sentiment?type=pos" class="btn-download" target="_blank">下载积极评论.xlsx</a>
+        <div id="c3" class="chart"></div>
+    </div>
+    <!-- 消极词云 -->
+    <div class="chart-container">
+        <h3>消极评论词云</h3>
+        <a href="http://127.0.0.1:8000/api/analysis/download_sentiment?type=neg" class="btn-download" target="_blank">下载消极评论.xlsx</a>
+        <div id="c4" class="chart"></div>
+    </div>
+</div>
+
+<script>
+    async function init() {
+        try {
+            // 请求后端接口，等待响应
+            const res = await axios.get('http://127.0.0.1:8000/api/analysis/sentiment');
+            const data = res.data.data;
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'flex';
+            document.getElementById('cloud-content').style.display = 'flex';
+
+            const c1 = echarts.init(document.getElementById('c1'));
+            const c2 = echarts.init(document.getElementById('c2'));
+            const c3 = echarts.init(document.getElementById('c3'));
+            const c4 = echarts.init(document.getElementById('c4'));
+
+            // 饼图
+            c1.setOption({
+                tooltip: { trigger: 'item' },
+                legend: { bottom: '0%' },
+                series: [{
+                    type: 'pie', radius: ['40%', '70%'],
+                    data: [
+                        { value: data.positive, name: '积极', itemStyle: {color: '#91cc75'} },
+                        { value: data.neutral, name: '中性', itemStyle: {color: '#fac858'} },
+                        { value: data.negative, name: '消极', itemStyle: {color: '#ee6666'} }
+                    ]
+                }]
+            });
+
+            // 柱状图
+            c2.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: ['0~0.2(很消极)', '0.2~0.4(偏消极)', '0.4~0.6(中性)', '0.6~0.8(偏积极)', '0.8~1.0(很积极)'] },
+                yAxis: { type: 'value', name: '评论数' },
+                series: [{
+                    data: data.distribution,
+                    type: 'bar',
+                    itemStyle: { color: '#5470c6' }
+                }]
+            });
+
+            // 词云图绘制函数
+            function drawCloud(chartInstance, wordData, colorRange) {
+                chartInstance.setOption({
+                    tooltip: {},
+                    series: [{
+                        type: 'wordCloud',
+                        shape: 'square',
+                        left: 'center', top: 'center', width: '100%', height: '100%',
+                        sizeRange: [12, 80],
+                        rotationRange: [0, 90],
+                        rotationStep: 90,
+                        gridSize: 8,
+                        textStyle: {
+                            color: function () {
+                                return colorRange[Math.floor(Math.random() * colorRange.length)];
+                            }
+                        },
+                        data: wordData
+                    }]
+                });
+            }
+
+            // 积极词云
+            drawCloud(c3, data.pos_words, ['#73a373', '#7bc8a4', '#4b5cc4', '#5e8579']);
+            
+            // 消极词云
+            const filteredNegWords = data.neg_words.filter(item => item.name !== '不错');
+            drawCloud(c4, filteredNegWords, ['#d87c7c', '#919e8b', '#d7ab82', '#6e7074']);
+
+            window.addEventListener('resize', () => {
+                c1.resize(); c2.resize(); c3.resize(); c4.resize();
+            });
+        } catch(e) {
+            document.getElementById('loading').innerText = '数据加载失败或超时，请刷新重试...';
+        }
+    }
+    window.onload = init;
+</script>
+</body>
+</html>

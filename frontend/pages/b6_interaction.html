@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        .row { display: flex; gap: 20px; margin-bottom: 20px; }
+        .chart-container { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); padding: 20px; }
+        .chart { width: 100%; height: 350px; }
+        h3 { margin: 0 0 15px 0; color: #333; text-align: center; }
+    </style>
+    <script src="../static/echarts.min.js"></script>
+    <script src="../static/axios.min.js"></script>
+</head>
+<body>
+
+<div class="row">
+    <!-- 带图分布 -->
+    <div class="chart-container">
+        <h3>消费者晒图分享占比</h3>
+        <div id="c1" class="chart"></div>
+    </div>
+    <!-- 点赞互动分布 -->
+    <div class="chart-container">
+        <h3>评价是否获赞</h3>
+        <div id="c2" class="chart"></div>
+    </div>
+    <!-- 商家回复分布 -->
+    <div class="chart-container">
+        <h3>商家是否跟进回复</h3>
+        <div id="c3" class="chart"></div>
+    </div>
+</div>
+
+<script>
+    async function init() {
+        const c1 = echarts.init(document.getElementById('c1'));
+        const c2 = echarts.init(document.getElementById('c2'));
+        const c3 = echarts.init(document.getElementById('c3'));
+
+        const res = await axios.get('http://127.0.0.1:8000/api/analysis/b6_interaction');
+        const data = res.data.data;
+
+        // 通用的饼图配置函数
+        function getPieOption(chartData, colors) {
+            return {
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                legend: { bottom: '0%' },
+                series: [{
+                    type: 'pie', radius: ['40%', '70%'],
+                    itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: false, position: 'center' },
+                    emphasis: {
+                        label: { show: true, fontSize: '18', fontWeight: 'bold' }
+                    },
+                    data: chartData,
+                    color: colors
+                }]
+            };
+        }
+
+        // 图片分享图表
+        c1.setOption(getPieOption(data.pic_dist, ['#5470c6', '#e0e6f1']));
+        
+        // 点赞图表
+        c2.setOption(getPieOption(data.like_dist, ['#fac858', '#91cc75']));
+
+        // 回复图表
+        c3.setOption(getPieOption(data.reply_dist, ['#73c0de', '#e0e6f1']));
+
+        window.addEventListener('resize', () => { c1.resize(); c2.resize(); c3.resize(); });
+    }
+    window.onload = init;
+</script>
+</body>
+</html>
