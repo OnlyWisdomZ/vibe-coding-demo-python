@@ -113,3 +113,46 @@ src/.hypothesis/
 
 .qwen
 .codex
+
+# ===== 项目补充规则（新增） =====
+
+# Python 额外缓存
+*.so
+*.egg
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.tox/
+.nox/
+htmlcov/
+coverage.xml
+*.cover
+
+# 前端额外构建产物
+.next/
+out/
+.nuxt/
+.vite/
+*.tsbuildinfo
+pnpm-debug.log*
+
+# 数据库
+*.sqlite
+*.sqlite3
+
+# 编辑器
+*.swp
+*.swo
+
+# OS 补充
+.AppleDouble
+.LSOverride
+$RECYCLE.BIN/
+
+# AI / Cursor
+.cursor/
+
+# 其他
+*.bak
+*.tar.gz
