@@ -7,40 +7,69 @@ import math
 import html
 import traceback
 from threading import Lock, Thread
-
 app = Flask(__name__)
 # 配置 CORS，允许前端访问
 CORS(app)
-
 # 获取前端项目目录
 static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
-
 @app.route('/frontend/<path:filename>')
 def serve_frontend(filename):
     return send_from_directory(static_dir, filename)
-
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
-
 @app.route('/')
 def read_root():
     # 根路径自动重定向到登录页
     return redirect('/frontend/login.html')
-
 # --- 数据加载模块 ---
 # 我们在应用启动时一次性加载数据到内存中，提升接口响应速度
 DATA_FILE = os.path.join(os.path.dirname(__file__), 'hotel_comments_cleaned.xlsx')
+
+# 中文列名到英文变量名的映射（用于兼容中文列名的Excel文件）
+COLUMN_NAME_MAPPING_CN_TO_EN = {
+    "评论ID": "commentId",
+    "酒店ID": "hotelID",
+    "酒店名称": "hotelName",
+    "城市": "ip",
+    "酒店图片URL": "hotelImageUrl",
+    "房型名称": "roomTypeName",
+    "评分": "averageScore",
+    "入住日期": "checkInDate",
+    "入住时间描述": "checkInDesc",
+    "退房日期": "checkOutDate",
+    "评论来源": "commentSource",
+    "用户头像": "headImg",
+    "会员ID": "memberId",
+    "会员姓名": "memberName",
+    "会员等级": "memberLevel",
+    "会员等级名称": "memberLevelName",
+    "CEO直达标记": "isCEO",
+    "优质评论": "isHighQuality",
+    "华住渠道": "isHuazhu",
+    "订单号": "orderId",
+    "评价内容": "postsContent",
+    "评价人名称": "postsName",
+    "评价时间": "postsTime",
+    "审核原因": "verifyReason",
+    "审核状态码": "verifyStatus",
+    "审核状态描述": "verifyStatusDesc",
+    "点赞数": "likeCount",
+    "文件数量": "fileCount",
+    "评价标签": "tags",
+    "酒店回复": "reply"
+}
 
 try:
     # 尝试打印相对工作目录的路径，使控制台输出更简洁
     display_path = os.path.relpath(DATA_FILE, os.getcwd())
 except Exception:
     display_path = DATA_FILE
-
 print(f"正在加载数据，文件路径: {display_path}")
 try:
     df = pd.read_excel(DATA_FILE)
+    # 如果列名是中文，则映射为英文变量名
+    df = df.rename(columns=COLUMN_NAME_MAPPING_CN_TO_EN)
     # 将所有的 NaN 或 NaT 替换为 None，防止 JSON 序列化失败
     df = df.replace({np.nan: None})
     comments_data = df.to_dict(orient='records')
@@ -49,16 +78,11 @@ except Exception as e:
     print(f"数据加载失败：{e}")
     comments_data = []
     df = pd.DataFrame()
-
 # --- 接口路由 ---
-
 import uuid
-
 import json
 import hashlib
-
 USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
-
 def load_users():
     if os.path.exists(USERS_FILE):
         try:
@@ -67,7 +91,6 @@ def load_users():
         except json.JSONDecodeError:
             return {}
     return {}
-
 def save_users(users):
     with open(USERS_FILE, 'w', encoding='utf-8') as f:
         json.dump(users, f, ensure_ascii=False, indent=4)
@@ -84,33 +107,25 @@ def register():
             return html_content
         except FileNotFoundError:
             return "register.html not found", 404
-
     if request.method == 'POST':
         req = request.get_json()
         if not req:
             return jsonify({"code": 400, "message": "无效的请求数据"})
-        
         username = req.get("username", "").strip()
         password = req.get("password", "")
-        
         if not username or len(username) < 3 or len(username) > 20:
             return jsonify({"code": 400, "message": "用户名长度必须在3-20个字符之间"})
-            
         if not password:
             return jsonify({"code": 400, "message": "密码不能为空"})
-            
         users = load_users()
         if username in users:
             return jsonify({"code": 400, "message": "用户名已存在"})
-            
         # SHA-256 哈希
         hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        
         users[username] = {
             "password_hash": hashed_password
         }
         save_users(users)
-        
         return jsonify({"code": 200, "message": "注册成功"})
 
 @app.route('/api/login', methods=['POST'])
@@ -118,10 +133,8 @@ def login():
     req = request.get_json()
     if not req:
         return jsonify({"code": 401, "message": "请求无效"})
-        
     username = req.get("username")
     password = req.get("password")
-
     if username == "admin" and password == "123456":
         real_token = str(uuid.uuid4())
         return jsonify({
@@ -132,7 +145,6 @@ def login():
                 "username": username
             }
         })
-        
     users = load_users()
     if username in users:
         hashed_password = hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -146,7 +158,6 @@ def login():
                     "username": username
                 }
             })
-            
     return jsonify({
         "code": 401,
         "message": "用户名或密码错误！"
@@ -158,19 +169,14 @@ def get_comments():
     page = request.args.get('page', 1, type=int)
     page_size = request.args.get('page_size', 20, type=int)
     hotel_id = request.args.get('hotel_id')
-    
     filtered_data = comments_data
-    
     if hotel_id:
         filtered_data = [item for item in filtered_data if str(item.get("hotelID")) == str(hotel_id)]
-        
     total = len(filtered_data)
-    
     # 分页逻辑
     start = (page - 1) * page_size
     end = start + page_size
     paginated_data = filtered_data[start:end]
-    
     return jsonify({
         "code": 200,
         "message": "success",
@@ -187,7 +193,6 @@ def get_stats():
     # 返回给前端图表展示用的一些统计数据
     if df.empty:
         return jsonify({"code": 500, "message": "No data available."})
-        
     # 1. 去掉无意义的评分分布，改为评论内容长度分布
     if 'postsContent' in df.columns:
         lengths = df['postsContent'].astype(str).str.len()
@@ -200,14 +205,11 @@ def get_stats():
         length_distribution = [{"range": k, "count": v} for k, v in len_dist.items()]
     else:
         length_distribution = []
-    
     # 2. 各酒店评论数分布
     hotel_counts = df['hotelName'].value_counts().to_dict()
     hotel_distribution = [{"hotelName": str(k) if k else "Unknown", "count": int(v)} for k, v in hotel_counts.items()]
-    
     # 3. 回复比例
     reply_counts = df['reply'].value_counts().to_dict()
-    
     return jsonify({
         "code": 200,
         "message": "success",
@@ -222,34 +224,32 @@ def get_stats():
         }
     })
 
-import random
 import jieba
 import jieba.analyse
 from snownlp import SnowNLP
+from snownlp import sentiment
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 import re
 import logging
 import time
-
 # 屏蔽 jieba 默认的英文控制台输出
 jieba.setLogLevel(logging.WARNING)
 print("正在初始化自然语言分词模型...")
 start_time = time.time()
 jieba.initialize()
-
 # 添加自定义词汇，确保特定复合词不被错误切分
-custom_words = ["性价比", "隔音差", "热水不稳定", "前台态度", "卫生差", "地理位置", "交通便利", "自助早餐"]
+custom_words = [
+    "性价比", "隔音差", "热水不稳定", "前台态度", "卫生差", "地理位置", "交通便利", "自助早餐",
+    "很赞", "很好", "太棒了", "推荐", "很差", "太差了", "极差", "不推荐", "避坑"
+]
 for word in custom_words:
     jieba.add_word(word)
-
 print(f"分词模型加载并添加自定义词汇成功，耗时 {round(time.time() - start_time, 3)} 秒。")
-
 # 缓存分析结果，避免每次请求重复计算耗时操作
 analysis_cache = {}
 analysis_tasks = {}
 analysis_task_lock = Lock()
-
 LDA_MAX_FEATURES = 3000
 LDA_TOPIC_RANGE = tuple(range(1, 9))
 DEFAULT_LDA_TOPIC_COUNT = 4
@@ -258,12 +258,9 @@ LDA_TYPE_LABELS = {
     "neg": "消极评论",
     "all": "全部评论"
 }
-
 STOP_WORDS_FILE = os.path.join(os.path.dirname(__file__), '停用词.txt')
 POS_CLOUD_STOP_WORDS_FILE = os.path.join(os.path.dirname(__file__), '积极词云停用词.txt')
 NEG_CLOUD_STOP_WORDS_FILE = os.path.join(os.path.dirname(__file__), '消极词云停用词.txt')
-
-
 def load_word_set(file_path, fallback_words=None):
     fallback_words = fallback_words or set()
     try:
@@ -272,8 +269,6 @@ def load_word_set(file_path, fallback_words=None):
         return fallback_words.union(words)
     except FileNotFoundError:
         return set(fallback_words)
-
-
 def load_stop_words():
     base_words = {
         "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
@@ -281,26 +276,18 @@ def load_stop_words():
         "自己", "这", "酒店", "房间", "入住", "评论", "华住会"
     }
     return load_word_set(STOP_WORDS_FILE, base_words)
-
-
 # 停用词表
 STOP_WORDS = load_stop_words()
 POS_CLOUD_STOP_WORDS = STOP_WORDS.union(load_word_set(POS_CLOUD_STOP_WORDS_FILE))
 NEG_CLOUD_STOP_WORDS = STOP_WORDS.union(load_word_set(NEG_CLOUD_STOP_WORDS_FILE))
-
-
 def invalidate_lda_cache():
     keys_to_remove = [key for key in analysis_cache if key.startswith("lda_")]
     for key in keys_to_remove:
         analysis_cache.pop(key, None)
-
-
 def get_recommended_topic_count():
     summary = analysis_cache.get("lda_summary", {}).get("data", {})
     topic_count = summary.get("recommended_topic_count", DEFAULT_LDA_TOPIC_COUNT)
     return topic_count if topic_count in LDA_TOPIC_RANGE else DEFAULT_LDA_TOPIC_COUNT
-
-
 def normalize_topic_count(value, default_topic_count=DEFAULT_LDA_TOPIC_COUNT):
     fallback_topic_count = default_topic_count if default_topic_count in LDA_TOPIC_RANGE else DEFAULT_LDA_TOPIC_COUNT
     try:
@@ -308,14 +295,10 @@ def normalize_topic_count(value, default_topic_count=DEFAULT_LDA_TOPIC_COUNT):
     except (TypeError, ValueError):
         topic_count = fallback_topic_count
     return topic_count if topic_count in LDA_TOPIC_RANGE else fallback_topic_count
-
-
 def get_task_status(task_key):
     with analysis_task_lock:
         task = analysis_tasks.get(task_key, {}).copy()
     return task
-
-
 def update_task_status(task_key, *, status=None, stage=None, message=None, current=None, total=None, error=None, finished=False):
     with analysis_task_lock:
         task = analysis_tasks.get(task_key, {})
@@ -326,7 +309,6 @@ def update_task_status(task_key, *, status=None, stage=None, message=None, curre
                 "message": "任务已创建",
                 "created_at": time.time()
             }
-
         if status is not None:
             task["status"] = status
         if stage is not None:
@@ -341,21 +323,17 @@ def update_task_status(task_key, *, status=None, stage=None, message=None, curre
             task["percent"] = round((current_value / total_value) * 100, 1) if total_value else 0.0
         if error is not None:
             task["error"] = error
-
         task["updated_at"] = time.time()
         if finished:
             task["finished_at"] = time.time()
-
         analysis_tasks[task_key] = task
         return task.copy()
-
 
 def start_background_task(task_key, runner, start_message):
     with analysis_task_lock:
         existing = analysis_tasks.get(task_key)
         if existing and existing.get("status") in ("queued", "running"):
             return False
-
         analysis_tasks[task_key] = {
             "status": "queued",
             "stage": "queued",
@@ -366,7 +344,6 @@ def start_background_task(task_key, runner, start_message):
             "created_at": time.time(),
             "updated_at": time.time()
         }
-
     def task_wrapper():
         try:
             update_task_status(task_key, status="running", stage="starting", message=start_message)
@@ -392,38 +369,29 @@ def start_background_task(task_key, runner, start_message):
                 error=str(exc),
                 finished=True
             )
-
     Thread(target=task_wrapper, daemon=True).start()
     return True
-
-# --- 补充的数据分析接口 (全新7个) ---
-
 # 1. 消费者会员等级分布与消费特征分析
 @app.route('/api/analysis/b1_member', methods=['GET'])
 def get_b1_member():
     if df.empty or 'memberLevelName' not in df.columns:
         return jsonify({"code": 200, "message": "success", "data": {}})
-    
     # 会员等级人数占比
     counts = df['memberLevelName'].value_counts().to_dict()
     level_dist = [{"name": str(k), "value": int(v)} for k, v in counts.items() if k and str(k) != 'nan']
-    
     # 消费特征：各等级的平均带图率和平均字数
     valid_df = df.dropna(subset=['memberLevelName']).copy()
     if 'fileCount' in valid_df.columns:
         valid_df['hasFile'] = valid_df['fileCount'].apply(lambda x: 1 if pd.notnull(x) and float(x) > 0 else 0)
     else:
         valid_df['hasFile'] = 0
-        
     if 'postsContent' in valid_df.columns:
         valid_df['contentLen'] = valid_df['postsContent'].astype(str).str.len()
     else:
         valid_df['contentLen'] = 0
-        
     grouped = valid_df.groupby('memberLevelName')
     file_rates = (grouped['hasFile'].mean() * 100).round(1).to_dict()
     len_avgs = grouped['contentLen'].mean().round(0).to_dict()
-    
     features = []
     for k in counts.keys():
         if k and str(k) != 'nan':
@@ -432,28 +400,21 @@ def get_b1_member():
                 "file_rate": file_rates.get(k, 0),
                 "avg_len": int(len_avgs.get(k, 0))
             })
-            
     return jsonify({"code": 200, "message": "success", "data": {"distribution": level_dist, "features": features}})
-
-
 # 2. 酒店房型入住频次与偏好分析
 @app.route('/api/analysis/b2_room', methods=['GET'])
 def get_b2_room():
     if df.empty or 'roomTypeName' not in df.columns:
         return jsonify({"code": 200, "message": "success", "data": []})
-        
     top_rooms = df['roomTypeName'].value_counts().head(15).index
     room_data = df[df['roomTypeName'].isin(top_rooms)].copy()
-    
     # 判断是否为长评（字数大于50），代表偏好深度分享
     if 'postsContent' in room_data.columns:
         room_data['isLong'] = room_data['postsContent'].astype(str).str.len().apply(lambda x: 1 if x > 50 else 0)
     else:
         room_data['isLong'] = 0
-        
     counts = room_data['roomTypeName'].value_counts().to_dict()
     long_counts = room_data.groupby('roomTypeName')['isLong'].sum().to_dict()
-    
     data = []
     for room in top_rooms:
         r_str = str(room)
@@ -465,32 +426,25 @@ def get_b2_room():
             })
     return jsonify({"code": 200, "message": "success", "data": data})
 
-
-# 3. 消费者满意度统计分析 (避开 averageScore 和 NLP，完全依靠 tags 字段和 isHighQuality 结构化数据)
+# 3. 消费者满意度统计分析
 @app.route('/api/analysis/b3_satisfaction', methods=['GET'])
 def get_b3_satisfaction():
     if df.empty:
         return jsonify({"code": 200, "message": "success", "data": {}})
-        
     # 定义常见差评词根（纯字符串匹配，不用NLP）
     bad_keywords = ["差", "吵", "旧", "脏", "异味", "不舒服", "慢", "坏", "蚊", "失望", "不行"]
     good_keywords = ["好", "干净", "舒适", "新", "热情", "方便", "棒", "安静"]
-    
     satisfaction = {"very_good": 0, "good": 0, "bad": 0, "neutral": 0}
-    
     for idx, row in df.iterrows():
         tag_str = str(row.get('tags', ''))
         content_str = str(row.get('postsContent', ''))
-        
         # 优先看 tags，如果 tags 有明显的差评字眼，算差
         is_bad = any(b in tag_str for b in bad_keywords)
         is_good = any(g in tag_str for g in good_keywords)
-        
         # 如果 tags 没填，退一步在正文找。为了防止误判，仅做粗略匹配
         if tag_str == 'nan' or not tag_str.strip():
             is_bad = any(b in content_str for b in bad_keywords)
             is_good = any(g in content_str for g in good_keywords)
-            
         if is_bad:
             satisfaction["bad"] += 1
         elif is_good:
@@ -502,12 +456,10 @@ def get_b3_satisfaction():
                 satisfaction["good"] += 1
         else:
             satisfaction["neutral"] += 1
-            
     # 高质量评价整体占比
     hq_count = 0
     if 'isHighQuality' in df.columns:
         hq_count = int(df['isHighQuality'].apply(lambda x: 1 if str(x) in ['1', 'True'] else 0).sum())
-        
     data = {
         "distribution": [
             {"name": "非常满意(好评+优质)", "value": satisfaction["very_good"]},
@@ -520,15 +472,12 @@ def get_b3_satisfaction():
     }
     return jsonify({"code": 200, "message": "success", "data": data})
 
-
 # 4. 评论发布时间与入住时段特征分析
 @app.route('/api/analysis/b4_time', methods=['GET'])
 def get_b4_time():
     if df.empty:
         return jsonify({"code": 200, "message": "success", "data": {}})
-        
     valid_df = df.copy()
-    
     # 1. 评论发布时间按月趋势
     if 'postsTime' in valid_df.columns:
         valid_df['postMonth'] = valid_df['postsTime'].astype(str).str.slice(0, 7)
@@ -536,7 +485,6 @@ def get_b4_time():
         post_trend_data = [{"time": k, "count": v} for k, v in post_trend.items() if k and k != 'nan']
     else:
         post_trend_data = []
-        
     # 2. 入住时段特征 (提取 checkInDesc 中的年月，例如 "2026年03月入住" -> "2026-03")
     if 'checkInDesc' in valid_df.columns:
         # 正则提取 4位年份和2位月份
@@ -547,7 +495,6 @@ def get_b4_time():
         checkin_trend_data = [{"month": str(k), "count": int(v)} for k, v in checkin_trend.items() if k and str(k) != 'nan']
     else:
         checkin_trend_data = []
-        
     return jsonify({
         "code": 200, 
         "message": "success", 
@@ -557,13 +504,11 @@ def get_b4_time():
         }
     })
 
-
-# 5. 酒店好评/差评标签高频词统计分析 (纯字符串切分统计)
+# 5. 酒店好评/差评标签高频词统计分析
 @app.route('/api/analysis/b5_tags', methods=['GET'])
 def get_b5_tags():
     if df.empty or 'tags' not in df.columns:
         return jsonify({"code": 200, "message": "success", "data": {}})
-        
     all_tags = []
     # 遍历 tags 列，按逗号切分
     for tag_str in df['tags'].dropna().astype(str):
@@ -572,38 +517,30 @@ def get_b5_tags():
             clean_str = tag_str.replace('，', ',').replace(' ', ',')
             parts = [p.strip() for p in clean_str.split(',') if p.strip()]
             all_tags.extend(parts)
-            
     # 统计词频
     from collections import Counter
     tag_counts = Counter(all_tags)
-    
     # 简单分好评和差评池
     bad_roots = ["差", "吵", "旧", "脏", "慢", "坏", "小", "异味", "不好", "不干净", "不隔音", "破", "乱", "漏", "无"]
-    
     good_tags = []
     bad_tags = []
-    
     for tag, count in tag_counts.items():
         # "不错" 是好评词，不能因为含有"不"就被算作差评
         if "不错" in tag:
             good_tags.append({"name": tag, "value": count})
             continue
-            
         # “无”字要小心，比如“无异味”是好评，但“无窗”算中性/负面
         if "无异味" in tag:
             good_tags.append({"name": tag, "value": count})
             continue
-
         is_bad = any(b in tag for b in bad_roots)
         if is_bad:
             bad_tags.append({"name": tag, "value": count})
         else:
             good_tags.append({"name": tag, "value": count})
-            
     # 排序
     good_tags.sort(key=lambda x: x["value"], reverse=True)
     bad_tags.sort(key=lambda x: x["value"], reverse=True)
-
     return jsonify({
         "code": 200,
         "message": "success",
@@ -613,20 +550,17 @@ def get_b5_tags():
         }
     })
 
-
 # 6. 消费者评论图片/点赞互动行为分析
 @app.route('/api/analysis/b6_interaction', methods=['GET'])
 def get_b6_interaction():
     if df.empty:
         return jsonify({"code": 200, "message": "success", "data": {}})
-        
     # 图片分布
     has_pic = 0
     no_pic = 0
     if 'fileCount' in df.columns:
         has_pic = int(df['fileCount'].apply(lambda x: 1 if pd.notnull(x) and float(x) > 0 else 0).sum())
         no_pic = len(df) - has_pic
-        
     # 点赞分布 (是否获得点赞)
     has_like = 0
     no_like = 0
@@ -634,14 +568,12 @@ def get_b6_interaction():
         likes = df['likeCount'].fillna(0).astype(float)
         no_like = int((likes == 0).sum())
         has_like = int((likes > 0).sum())
-        
     # 商家互动 (reply)
     has_reply = 0
     no_reply = 0
     if 'reply' in df.columns:
         has_reply = int(df['reply'].fillna(0).astype(float).sum())
         no_reply = len(df) - has_reply
-        
     data = {
         "pic_dist": [{"name": "带图评论", "value": has_pic}, {"name": "无图评论", "value": no_pic}],
         "like_dist": [{"name": "未获得点赞", "value": no_like}, {"name": "已获得点赞", "value": has_like}],
@@ -649,14 +581,12 @@ def get_b6_interaction():
     }
     return jsonify({"code": 200, "message": "success", "data": data})
 
-
 # 7. 同一省份酒店多维对比分析
 @app.route('/api/analysis/b7_city', methods=['GET'])
 def get_b7_province():
     province = request.args.get('province')
     if df.empty or 'hotelName' not in df.columns:
         return jsonify({"code": 200, "message": "success", "data": {}})
-        
     prov_map = {
         '台儿庄': '山东', '青岛': '山东',
         '南京': '江苏', '无锡': '江苏', '苏州': '江苏', '扬州': '江苏',
@@ -665,60 +595,47 @@ def get_b7_province():
         '北京': '北京', '广州': '广东', '深圳': '广东', '武汉': '湖北', '西安': '陕西',
         '重庆': '重庆', '长沙': '湖南', '天津': '天津', '郑州': '河南', '大连': '辽宁', '上海': '上海'
     }
-    
     valid_df = df.copy()
     valid_df['province'] = '其他'
-    
     for k, v in prov_map.items():
         valid_df.loc[valid_df['hotelName'].astype(str).str.contains(k), 'province'] = v
-        
     # 获取所有的省份列表，按拥有酒店数量排序
     prov_hotel_counts = valid_df[valid_df['province'] != '其他'].groupby('province')['hotelName'].nunique()
     if prov_hotel_counts.empty:
         return jsonify({"code": 200, "message": "未匹配到省份数据", "data": {}})
-        
     # 用户只要江苏、浙江、四川这三个省份的数据
     allowed_provs = ["江苏", "浙江", "四川"]
-    
     available_provs = []
     # 过滤出当前数据里确实存在、并且在 allowed_provs 里的省份
     for p in prov_hotel_counts.sort_values(ascending=False).index.tolist():
         if p in allowed_provs:
             available_provs.append(p)
-            
     if not available_provs:
         return jsonify({"code": 200, "message": "没有找到江浙川三个省份的数据", "data": {}})
-    
     # 确定要分析的省份
     if province and province in available_provs:
         target_prov = province
     else:
-        # 默认使用第一个（比如江苏）
+        # 默认使用第一个
         target_prov = available_provs[0]
-    
     prov_df = valid_df[valid_df['province'] == target_prov].copy()
-    
     if 'fileCount' in prov_df.columns:
         prov_df['hasFile'] = prov_df['fileCount'].apply(lambda x: 1 if pd.notnull(x) and float(x) > 0 else 0)
     else:
         prov_df['hasFile'] = 0
-        
     if 'reply' in prov_df.columns:
         prov_df['isReplied'] = prov_df['reply'].fillna(0)
     else:
         prov_df['isReplied'] = 0
-        
     if 'isHighQuality' in prov_df.columns:
         prov_df['isHq'] = prov_df['isHighQuality'].apply(lambda x: 1 if str(x) in ['1', 'True'] else 0)
     else:
         prov_df['isHq'] = 0
-        
     hotel_counts = prov_df['hotelName'].value_counts().to_dict()
     file_counts = prov_df.groupby('hotelName')['hasFile'].sum().to_dict()
     reply_counts = prov_df.groupby('hotelName')['isReplied'].sum().to_dict()
     hq_counts = prov_df.groupby('hotelName')['isHq'].sum().to_dict()
     avg_lens = prov_df.groupby('hotelName')['postsContent'].apply(lambda x: x.astype(str).str.len().mean()).to_dict()
-    
     chart_data = []
     for h, c in hotel_counts.items():
         if c == 0: continue
@@ -730,7 +647,6 @@ def get_b7_province():
             "hq_rate": round(hq_counts.get(h, 0) / c * 100, 1),
             "avg_len": round(avg_lens.get(h, 0), 0) if pd.notnull(avg_lens.get(h)) else 0
         })
-        
     return jsonify({
         "code": 200, 
         "message": "success", 
@@ -740,8 +656,6 @@ def get_b7_province():
             "hotels": chart_data
         }
     })
-
-
 # --- 深度文本分析接口 ---
 def get_all_texts():
     if df.empty or 'postsContent' not in df.columns:
@@ -749,28 +663,23 @@ def get_all_texts():
     # 提取所有非空文本进行全表扫描
     texts = df['postsContent'].dropna().astype(str).tolist()
     return texts
-
 @app.route('/api/analysis/tfidf', methods=['GET'])
 def get_tfidf_analysis():
     if "tfidf" in analysis_cache:
         return jsonify({"code": 200, "message": "success", "data": analysis_cache["tfidf"]})
-        
     texts = get_all_texts()
     if not texts:
         return jsonify({"code": 200, "message": "success", "data": []})
-        
     # 合并所有文本，全表扫描
     full_text = "。".join(texts)
     # 提取TF-IDF前50名
     tags = jieba.analyse.extract_tags(full_text, topK=50, withWeight=True)
-    
     data = []
     for word, weight in tags:
         if word not in STOP_WORDS and len(word) > 1:
             data.append({"word": word, "weight": round(weight, 3)}) # 保留3位小数
-        if len(data) >= 30: # 给前端提供足够多的词，可以画词云或柱状图
+        if len(data) >= 30:
             break
-            
     analysis_cache["tfidf"] = data
     return jsonify({"code": 200, "message": "success", "data": data})
 
@@ -778,27 +687,21 @@ def get_tfidf_analysis():
 def get_sentiment_analysis():
     data = compute_sentiment_cache()
     return jsonify({"code": 200, "message": "success", "data": data})
-
-
 def compute_sentiment_cache(progress_task_key=None):
     if "sentiment" in analysis_cache:
         return analysis_cache["sentiment"]
-
     texts = get_all_texts() 
     if not texts:
         analysis_cache["pos_texts"] = []
         analysis_cache["neg_texts"] = []
         analysis_cache["sentiment"] = {}
         return analysis_cache["sentiment"]
-
     pos, neu, neg = 0, 0, 0
     scores = []
     pos_texts = []
     neg_texts = []
-
     # 记录所有的原始分数以及它们被判定的类别，用于画箱线图/分布图
     all_scores_detail = []
-
     total_texts = len(texts)
     if progress_task_key:
         update_task_status(
@@ -809,7 +712,6 @@ def compute_sentiment_cache(progress_task_key=None):
             current=0,
             total=total_texts
         )
-
     for idx, text in enumerate(texts, start=1):
         try:
             # 清理特殊字符
@@ -819,7 +721,6 @@ def compute_sentiment_cache(progress_task_key=None):
             s = SnowNLP(clean_text)
             score = s.sentiments
             scores.append(score)
-            
             category = "neutral"
             if score > 0.65:
                 pos += 1
@@ -831,15 +732,13 @@ def compute_sentiment_cache(progress_task_key=None):
                 category = "neg"
             else:
                 neu += 1
-                
             all_scores_detail.append({
                 "score": score,
                 "category": category,
-                "text": text # 新增：保存原始文本以供详情页展示
+                "text": text # 保存原始文本以供详情页展示
             })
         except:
             pass
-
         if progress_task_key and (idx % 200 == 0 or idx == total_texts):
             update_task_status(
                 progress_task_key,
@@ -854,25 +753,21 @@ def compute_sentiment_cache(progress_task_key=None):
     for score in scores:
         idx = min(int(score / 0.2), 4)
         dist[idx] += 1
-        
     def extract_words(doc_list, is_negative=False):
         full_str = "。".join(doc_list)
-        # 如果是消极词云，提取更多词语备选以便过滤
-        top_k = 100 if is_negative else 50
+        # 增加提取词汇量，以满足至少80个词的需求
+        top_k = 300 if is_negative else 200
         tags = jieba.analyse.extract_tags(full_str, topK=top_k, withWeight=True)
         res = []
         current_stops = NEG_CLOUD_STOP_WORDS if is_negative else POS_CLOUD_STOP_WORDS
-
         for w, weight in tags:
             if w not in current_stops and len(w) > 1:
                 res.append({"name": w, "value": round(weight * 1000, 2)})
-            if len(res) >= 30:
+            if len(res) >= 80:
                 break
         return res
-        
     pos_words = extract_words(pos_texts, is_negative=False)
     neg_words = extract_words(neg_texts, is_negative=True)
-        
     data = {
         "positive": pos,
         "neutral": neu,
@@ -882,7 +777,6 @@ def compute_sentiment_cache(progress_task_key=None):
         "neg_words": neg_words,
         "all_scores": all_scores_detail
     }
-
     invalidate_lda_cache()
     analysis_cache["pos_texts"] = pos_texts
     analysis_cache["neg_texts"] = neg_texts
@@ -898,15 +792,12 @@ def download_word_csv():
     texts = get_all_texts()
     if not texts:
         return jsonify({"code": 500, "message": "没有找到评论数据"})
-        
     word_counts = {}
-    
     for text in texts:
         # 清理特殊字符，减少不必要的标点
         clean_text = re.sub(r'[^\w\s\u4e00-\u9fa5]', '', text)
         if not clean_text.strip():
             continue
-            
         words = pseg.cut(clean_text)
         for w, flag in words:
             w_strip = w.strip()
@@ -914,10 +805,8 @@ def download_word_csv():
             if w_strip and w_strip not in STOP_WORDS and len(w_strip) > 1 and flag != 'x':
                 key = (w_strip, flag)
                 word_counts[key] = word_counts.get(key, 0) + 1
-                
     # 按照词频倒序排序
     sorted_words = sorted(word_counts.items(), key=lambda item: item[1], reverse=True)
-    
     # 将结果保存为本地 word.csv 文件
     save_path = os.path.join(os.path.dirname(__file__), 'word.csv')
     with open(save_path, 'w', encoding='utf-8-sig', newline='') as f:
@@ -925,20 +814,17 @@ def download_word_csv():
         writer.writerow(['词语', '词性', '频次'])
         for (word, flag), count in sorted_words:
             writer.writerow([word, flag, count])
-            
     # 同时提供下载功能
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['词语', '词性', '频次'])
     for (word, flag), count in sorted_words:
         writer.writerow([word, flag, count])
-        
     output.seek(0)
     mem = io.BytesIO()
     # 使用 utf-8-sig 防止 Excel 打开乱码
     mem.write(output.getvalue().encode('utf-8-sig'))
     mem.seek(0)
-    
     from flask import send_file
     return send_file(
         mem,
@@ -952,25 +838,19 @@ def download_sentiment():
     sentiment_type = request.args.get('type', 'pos')
     if "sentiment" not in analysis_cache:
         compute_sentiment_cache()
-        
     all_scores = analysis_cache["sentiment"].get("all_scores", [])
     filtered_data = [item for item in all_scores if item["category"] == sentiment_type]
-    
     df_download = pd.DataFrame([{
         "内容": item.get("text", ""),
         "情感类型": item.get("category", "").upper(),
         "情感分数": round(item.get("score", 0), 2)
     } for item in filtered_data])
-    
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df_download.to_excel(writer, index=False, sheet_name='Sheet1')
-    
     output.seek(0)
     from flask import send_file
-    
     filename = '积极评论.xlsx' if sentiment_type == 'pos' else '消极评论.xlsx'
-    
     return send_file(
         output, 
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -984,30 +864,25 @@ import pyLDAvis.lda_model
 def get_lda_source_texts(topic_type):
     pos_texts = analysis_cache.get("pos_texts", [])
     neg_texts = analysis_cache.get("neg_texts", [])
-
     if topic_type == 'pos':
         return pos_texts
     if topic_type == 'neg':
         return neg_texts
     return pos_texts + neg_texts
 
-
 def build_lda_corpus(topic_type, progress_task_key=None, progress_prefix=None):
     cache_key = f"lda_corpus_{topic_type}"
     if cache_key in analysis_cache:
         return analysis_cache[cache_key]
-
     if topic_type == "all":
         pos_cache = analysis_cache.get("lda_corpus_pos")
         neg_cache = analysis_cache.get("lda_corpus_neg")
         if pos_cache is not None and neg_cache is not None:
             analysis_cache[cache_key] = pos_cache + neg_cache
             return analysis_cache[cache_key]
-
     texts = get_lda_source_texts(topic_type)
     if not texts:
         return []
-
     total_texts = len(texts)
     prefix = progress_prefix or f"正在整理 {LDA_TYPE_LABELS.get(topic_type, topic_type)} 的 LDA 语料"
     if progress_task_key:
@@ -1019,13 +894,11 @@ def build_lda_corpus(topic_type, progress_task_key=None, progress_prefix=None):
             current=0,
             total=total_texts
         )
-
     corpus = []
     for idx, doc in enumerate(texts, start=1):
         words = [w for w in jieba.lcut(doc) if w not in STOP_WORDS and len(w) > 1]
         if words:
             corpus.append(" ".join(words))
-
         if progress_task_key and (idx % 200 == 0 or idx == total_texts):
             update_task_status(
                 progress_task_key,
@@ -1035,10 +908,8 @@ def build_lda_corpus(topic_type, progress_task_key=None, progress_prefix=None):
                 current=idx,
                 total=total_texts
             )
-
     analysis_cache[cache_key] = corpus
     return corpus
-
 
 def build_lda_matrix(corpus):
     vectorizer = CountVectorizer(max_df=0.9, min_df=2, max_features=LDA_MAX_FEATURES)
@@ -1046,7 +917,6 @@ def build_lda_matrix(corpus):
     if dtm.shape[0] == 0 or dtm.shape[1] == 0:
         raise ValueError("LDA 语料在停用词过滤后没有足够的有效词项。")
     return vectorizer, dtm
-
 
 def create_lda_model(n_components):
     return LatentDirichletAllocation(
@@ -1059,16 +929,13 @@ def create_lda_model(n_components):
         n_jobs=-1
     )
 
-
 def compute_topic_umass_coherence(binary_dtm, topic_word_indices):
     if not topic_word_indices:
         return 0.0
-
     sub_matrix = binary_dtm[:, topic_word_indices].astype(np.float64)
     co_matrix = (sub_matrix.T @ sub_matrix).toarray()
     doc_freq = np.diag(co_matrix)
     scores = []
-
     for m in range(1, len(topic_word_indices)):
         for l in range(m):
             denominator = doc_freq[l]
@@ -1078,19 +945,15 @@ def compute_topic_umass_coherence(binary_dtm, topic_word_indices):
             if ratio <= 0:
                 continue
             scores.append(math.log(ratio))
-
     return float(np.mean(scores)) if scores else 0.0
-
 
 def normalize_umass_score(score):
     if math.isnan(score):
         return 0.0
     return round(float(max(0.0, min(1.0, (score + 15.0) / 15.0))), 3)
 
-
 def build_lda_summary_cache():
     task_key = "lda_summary_task"
-
     if "sentiment" not in analysis_cache:
         compute_sentiment_cache(progress_task_key=task_key)
     else:
@@ -1102,36 +965,29 @@ def build_lda_summary_cache():
             current=1,
             total=1
         )
-
     corpus = build_lda_corpus(
         "all",
         progress_task_key=task_key,
         progress_prefix="正在对全量积极/消极评论分词"
     )
-
     if not corpus:
         raise ValueError("情感分析完成后没有可用于 LDA 的文本。")
-
     update_task_status(
         task_key,
         status="running",
         stage="vectorize",
         message=f"正在构建词袋矩阵（{len(corpus)} 条有效文本）"
     )
-
     vectorizer, dtm = build_lda_matrix(corpus)
     feature_names = vectorizer.get_feature_names_out()
     binary_dtm = (dtm > 0).astype(np.float64).tocsr()
-
     from sklearn.metrics.pairwise import cosine_similarity
-
     topic_numbers = list(LDA_TOPIC_RANGE)
     coherence = []
     perplexity = []
     similarity = []
     topics_by_count = {}
     total_models = len(topic_numbers)
-
     for model_idx, n in enumerate(topic_numbers, start=1):
         update_task_status(
             task_key,
@@ -1141,10 +997,8 @@ def build_lda_summary_cache():
             current=model_idx,
             total=total_models
         )
-
         lda = create_lda_model(n)
         lda.fit(dtm)
-
         comp = lda.components_ / lda.components_.sum(axis=1)[:, np.newaxis]
         if n == 1:
             sim = 1.0
@@ -1157,24 +1011,27 @@ def build_lda_summary_cache():
         if not np.isfinite(perplexity_value):
             perplexity_value = float("inf")
         perplexity.append(round(perplexity_value, 3))
-
         topic_words = []
         topic_word_indices = []
+        topic_word_weights = []
         for topic in lda.components_:
             top_words_idx = topic.argsort()[:-11:-1]
             topic_word_indices.append(top_words_idx.tolist())
             topic_words.append([feature_names[i] for i in top_words_idx])
-
+            # 计算每个词的权重（归一化）
+            topic_sum = topic.sum()
+            weights = [round(topic[i] / topic_sum, 3) for i in top_words_idx]
+            topic_word_weights.append(weights)
         topic_scores = [compute_topic_umass_coherence(binary_dtm, indices) for indices in topic_word_indices]
         coherence.append(normalize_umass_score(float(np.mean(topic_scores)) if topic_scores else 0.0))
         topics_by_count[str(n)] = [
             {
                 "topic_id": idx,
-                "keywords": " ".join(words)
+                "keywords": " ".join(words),
+                "keywords_with_weights": [{"word": w, "weight": wt} for w, wt in zip(words, topic_word_weights[idx])]
             }
             for idx, words in enumerate(topic_words)
         ]
-
     best_coherence_topic_count = topic_numbers[max(range(len(topic_numbers)), key=lambda idx: (coherence[idx], -topic_numbers[idx]))]
     best_perplexity_topic_count = topic_numbers[min(range(len(topic_numbers)), key=lambda idx: (perplexity[idx], topic_numbers[idx]))]
     recommended_topic_count = topic_numbers[
@@ -1183,7 +1040,6 @@ def build_lda_summary_cache():
             key=lambda idx: (-coherence[idx], perplexity[idx], topic_numbers[idx])
         )
     ]
-
     data = {
         "code": 200,
         "message": "success",
@@ -1204,7 +1060,6 @@ def build_lda_summary_cache():
             }
         }
     }
-
     analysis_cache["lda_summary"] = data
     update_task_status(
         task_key,
@@ -1216,12 +1071,11 @@ def build_lda_summary_cache():
         finished=True
     )
 
-
 def build_lda_pyldavis_cache(topic_type, topic_count):
     task_key = f"lda_pyldavis_task_{topic_type}_{topic_count}"
     cache_key = f"lda_pyldavis_{topic_type}_{topic_count}"
+    topics_cache_key = f"lda_topics_{topic_type}_{topic_count}"
     label = LDA_TYPE_LABELS.get(topic_type, topic_type)
-
     if "sentiment" not in analysis_cache:
         compute_sentiment_cache(progress_task_key=task_key)
     else:
@@ -1233,16 +1087,13 @@ def build_lda_pyldavis_cache(topic_type, topic_count):
             current=1,
             total=1
         )
-
     corpus = build_lda_corpus(
         topic_type,
         progress_task_key=task_key,
         progress_prefix=f"正在对{label}分词"
     )
-
     if not corpus:
         raise ValueError(f"{label}没有可用于 LDA 的文本。")
-
     update_task_status(
         task_key,
         status="running",
@@ -1250,7 +1101,6 @@ def build_lda_pyldavis_cache(topic_type, topic_count):
         message=f"正在构建{label}词袋矩阵（{len(corpus)} 条有效文本）"
     )
     vectorizer, dtm = build_lda_matrix(corpus)
-
     update_task_status(
         task_key,
         status="running",
@@ -1259,7 +1109,24 @@ def build_lda_pyldavis_cache(topic_type, topic_count):
     )
     lda = create_lda_model(topic_count)
     lda.fit(dtm)
-
+    # 保存该类型的主题关键词及权重
+    feature_names = vectorizer.get_feature_names_out()
+    topic_words = []
+    topic_word_weights = []
+    for topic in lda.components_:
+        top_words_idx = topic.argsort()[:-11:-1]
+        topic_words.append([feature_names[i] for i in top_words_idx])
+        topic_sum = topic.sum()
+        weights = [round(topic[i] / topic_sum, 3) for i in top_words_idx]
+        topic_word_weights.append(weights)
+    analysis_cache[topics_cache_key] = [
+        {
+            "topic_id": idx,
+            "keywords": " ".join(words),
+            "keywords_with_weights": [{"word": w, "weight": wt} for w, wt in zip(words, topic_word_weights[idx])]
+        }
+        for idx, words in enumerate(topic_words)
+    ]
     update_task_status(
         task_key,
         status="running",
@@ -1268,7 +1135,6 @@ def build_lda_pyldavis_cache(topic_type, topic_count):
     )
     vis_data = pyLDAvis.lda_model.prepare(lda, dtm, vectorizer)
     analysis_cache[cache_key] = pyLDAvis.prepared_data_to_html(vis_data)
-
     update_task_status(
         task_key,
         status="completed",
@@ -1279,6 +1145,42 @@ def build_lda_pyldavis_cache(topic_type, topic_count):
         finished=True
     )
 
+@app.route('/api/analysis/lda_topics', methods=['GET'])
+def get_lda_topics():
+    """获取特定类型的LDA主题关键词及权重"""
+    topic_type = request.args.get('type', 'all')
+    topic_count = normalize_topic_count(request.args.get('topics'), DEFAULT_LDA_TOPIC_COUNT)
+    topics_cache_key = f"lda_topics_{topic_type}_{topic_count}"
+    if topics_cache_key in analysis_cache:
+        return jsonify({
+            "code": 200,
+            "message": "success",
+            "data": {
+                "topics": analysis_cache[topics_cache_key],
+                "topic_count": topic_count,
+                "type": topic_type
+            }
+        })
+    # 如果缓存不存在，检查是否正在生成
+    task_key = f"lda_pyldavis_task_{topic_type}_{topic_count}"
+    task = get_task_status(task_key)
+    if task.get("status") in ("queued", "running"):
+        return jsonify({
+            "code": 202,
+            "message": task.get("message", "正在生成LDA主题数据，请稍候..."),
+            "data": task
+        }), 202
+    # 启动生成任务
+    start_background_task(
+        task_key,
+        lambda: build_lda_pyldavis_cache(topic_type, topic_count),
+        f"正在启动 {LDA_TYPE_LABELS.get(topic_type, topic_type)} 的LDA主题生成任务..."
+    )
+    return jsonify({
+        "code": 202,
+        "message": "正在生成LDA主题数据，请稍候...",
+        "data": get_task_status(task_key)
+    }), 202
 
 def build_lda_loading_html(topic_type, topic_count, task):
     label = LDA_TYPE_LABELS.get(topic_type, topic_type)
@@ -1288,7 +1190,6 @@ def build_lda_loading_html(topic_type, topic_count, task):
     hint_text = "页面会自动刷新，生成完成后会自动展示结果。"
     if task.get("total"):
         progress_text = f'{task.get("current", 0)}/{task.get("total", 0)} ({task.get("percent", 0)}%)'
-
     error_text = ""
     auto_refresh_script = ""
     if task.get("status") == "failed":
@@ -1376,18 +1277,14 @@ def build_lda_loading_html(topic_type, topic_count, task):
 def get_lda_summary():
     if "lda_summary" in analysis_cache:
         return jsonify(analysis_cache["lda_summary"])
-
     task_key = "lda_summary_task"
     task = get_task_status(task_key)
-
     if task.get("status") == "failed":
         start_background_task(task_key, build_lda_summary_cache, "检测到上次 LDA 汇总失败，正在重新启动任务...")
         task = get_task_status(task_key)
-
     if task.get("status") not in ("queued", "running"):
         start_background_task(task_key, build_lda_summary_cache, "正在启动 LDA 汇总任务...")
         task = get_task_status(task_key)
-
     return jsonify({
         "code": 202,
         "message": task.get("message", "正在生成 LDA 汇总，请稍候..."),
@@ -1401,10 +1298,8 @@ def get_lda_pyldavis():
     cache_key = f"lda_pyldavis_{topic_type}_{topic_count}"
     if cache_key in analysis_cache:
         return analysis_cache[cache_key]
-
     task_key = f"lda_pyldavis_task_{topic_type}_{topic_count}"
     task = get_task_status(task_key)
-
     if task.get("status") == "failed":
         start_background_task(
             task_key,
@@ -1412,7 +1307,6 @@ def get_lda_pyldavis():
             f"检测到 {LDA_TYPE_LABELS.get(topic_type, topic_type)} 的交互式主题图上次生成失败，正在重新启动任务..."
         )
         task = get_task_status(task_key)
-
     if task.get("status") not in ("queued", "running"):
         start_background_task(
             task_key,
@@ -1420,7 +1314,6 @@ def get_lda_pyldavis():
             f"正在启动 {LDA_TYPE_LABELS.get(topic_type, topic_type)} 的交互式主题图生成任务..."
         )
         task = get_task_status(task_key)
-
     status_code = 500 if task.get("status") == "failed" else 202
     return build_lda_loading_html(topic_type, topic_count, task), status_code
 

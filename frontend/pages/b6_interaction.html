@@ -41,32 +41,38 @@
         const res = await axios.get('http://127.0.0.1:8000/api/analysis/b6_interaction');
         const data = res.data.data;
 
-        // 通用的饼图配置函数
-        function getPieOption(chartData, colors) {
+        function getGaugeOption(chartData, color, posKeyword) {
+            const total = chartData.reduce((s, d) => s + d.value, 0);
+            const posItem = chartData.find(d => d.name.includes(posKeyword)) || chartData[0];
+            const rate = total > 0 ? (posItem.value / total * 100).toFixed(1) : 0;
             return {
-                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-                legend: { bottom: '0%' },
                 series: [{
-                    type: 'pie', radius: ['40%', '70%'],
-                    itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
-                    label: { show: false, position: 'center' },
-                    emphasis: {
-                        label: { show: true, fontSize: '18', fontWeight: 'bold' }
+                    type: 'gauge',
+                    startAngle: 200,
+                    endAngle: -20,
+                    min: 0,
+                    max: 100,
+                    progress: { show: true, width: 20, itemStyle: { color: color } },
+                    axisLine: { lineStyle: { width: 20, color: [[1, '#e0e6f1']] } },
+                    axisTick: { show: false },
+                    splitLine: { show: false },
+                    axisLabel: { show: false },
+                    pointer: { show: false },
+                    anchor: { show: false },
+                    title: { show: true, offsetCenter: [0, '70%'], fontSize: 14, color: '#666' },
+                    detail: {
+                        valueAnimation: true, offsetCenter: [0, '0%'],
+                        fontSize: 30, fontWeight: 'bold', color: color,
+                        formatter: '{value}%'
                     },
-                    data: chartData,
-                    color: colors
+                    data: [{ value: rate, name: posItem.name }]
                 }]
             };
         }
 
-        // 图片分享图表
-        c1.setOption(getPieOption(data.pic_dist, ['#5470c6', '#e0e6f1']));
-        
-        // 点赞图表
-        c2.setOption(getPieOption(data.like_dist, ['#fac858', '#91cc75']));
-
-        // 回复图表
-        c3.setOption(getPieOption(data.reply_dist, ['#73c0de', '#e0e6f1']));
+        c1.setOption(getGaugeOption(data.pic_dist, '#5470c6', '晒图'));
+        c2.setOption(getGaugeOption(data.like_dist, '#fac858', '已获'));
+        c3.setOption(getGaugeOption(data.reply_dist, '#73c0de', '已回复'));
 
         window.addEventListener('resize', () => { c1.resize(); c2.resize(); c3.resize(); });
     }

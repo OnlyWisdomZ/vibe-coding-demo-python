@@ -3,156 +3,411 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户注册</title>
+    <title>注册 - 花间堂酒店评论分析系统</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+            font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
         }
-        body { 
-            width: 100%;
-            height: 100%;
-            background-color: #f0f2f5;
-            color: #333;
-        }
-        .register-container { 
-            width: 100%;
-            height: 100vh;
+
+        body {
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
+            background: url('/frontend/images/register.jpg') no-repeat center center;
+            background-size: cover;
+            position: relative;
+            overflow: hidden;
         }
-        .register-box { 
-            width: 400px;
-            background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+
+        /* 背景遮罩层 */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(85, 107, 47, 0.65) 0%, rgba(46, 79, 79, 0.55) 100%);
+            z-index: 1;
         }
-        h2 { 
-            text-align: center;
-            font-size: 24px;
-            margin-bottom: 30px;
-            color: #303133; 
-        }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
-        .form-group input { 
+
+        .register-container {
             width: 100%;
-            padding: 10px 15px;
-            border: 1px solid #dcdfe6;
-            border-radius: 4px;
+            max-width: 420px;
+            padding: 20px;
+            z-index: 10;
+            position: relative;
+        }
+
+        .register-box {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 45px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3),
+                        0 0 0 1px rgba(255, 255, 255, 0.1);
+            transform: translateY(0);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .register-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35),
+                        0 0 0 1px rgba(255, 255, 255, 0.15);
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* 装饰线条 */
+        .decorative-line {
+            width: 50px;
+            height: 3px;
+            background: linear-gradient(90deg, #5d8a66, #8fb996);
+            margin: 0 auto 12px;
+            border-radius: 2px;
+        }
+
+        .register-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2d4a3e;
+            margin-bottom: 6px;
+        }
+
+        .register-subtitle {
+            font-size: 13px;
+            color: #6b7c72;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            position: relative;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #5a6e64;
+            margin-bottom: 6px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper .icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            color: #9aab9f;
+            transition: color 0.3s;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 13px 15px 13px 42px;
+            border: 2px solid #d4ddd7;
+            border-radius: 10px;
             font-size: 14px;
             outline: none;
-            transition: border-color 0.2s; 
+            transition: all 0.3s ease;
+            background: #f8faf8;
         }
+
         .form-group input:focus {
-            border-color: #409eff;
+            border-color: #5d8a66;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(93, 138, 102, 0.15);
         }
-        .btn-register { 
+
+        .form-group input:focus + .icon,
+        .input-wrapper:hover .icon {
+            color: #5d8a66;
+        }
+
+        .btn-register {
             width: 100%;
-            padding: 12px;
-            background: #409eff;
+            padding: 14px;
+            background: linear-gradient(135deg, #5d8a66 0%, #3d6b47 100%);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 10px;
             font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.3s; 
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(61, 107, 71, 0.4);
+            margin-top: 8px;
         }
-        .btn-register:hover { background: #66b1ff; }
-        .message { margin-top: 15px; text-align: center; color: red; font-size: 14px; }
-        .success { color: green; }
-        .login-link { text-align: center; margin-top: 15px; font-size: 14px; }
-        .login-link a { color: #1890ff; text-decoration: none; }
+
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(61, 107, 71, 0.5);
+            background: linear-gradient(135deg, #6a9a73 0%, #4a7c54 100%);
+        }
+
+        .btn-register:active {
+            transform: translateY(0);
+        }
+
+        .message {
+            font-size: 13px;
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .message.error {
+            display: block;
+            color: #c0392b;
+            background: #fdeaea;
+            animation: shake 0.5s ease;
+        }
+
+        .message.success {
+            display: block;
+            color: #27ae60;
+            background: #e8f8ef;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.loading {
+            display: block;
+            color: #5d8a66;
+            background: #eef6f0;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid #e5ebe7;
+        }
+
+        .login-link a {
+            color: #5d8a66;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .login-link a:hover {
+            color: #3d6b47;
+        }
+
+        /* 密码强度指示器 */
+        .password-strength {
+            margin-top: 6px;
+            height: 4px;
+            border-radius: 2px;
+            background: #e5ebe7;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            width: 0;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .password-strength-bar.weak { width: 33%; background: #e74c3c; }
+        .password-strength-bar.medium { width: 66%; background: #f39c12; }
+        .password-strength-bar.strong { width: 100%; background: #27ae60; }
+
+        .password-hint {
+            font-size: 11px;
+            color: #9aab9f;
+            margin-top: 4px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .register-box {
+                padding: 35px 25px;
+            }
+            .register-title {
+                font-size: 20px;
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="register-container">
+        <div class="register-box">
+            <div class="logo-section">
+                <span class="logo-icon">🌿</span>
+                <div class="decorative-line"></div>
+                <h1 class="register-title">创建新账号</h1>
+                <p class="register-subtitle">加入花间堂评论分析系统</p>
+            </div>
 
-<div class="register-container">
-    <div class="register-box">
-    <h2>用户注册</h2>
-    <form id="registerForm" method="POST" action="/register">
-        <input type="hidden" name="csrf_token" id="csrf_token" value="{{ csrf_token }}">
-        <div class="form-group">
-            <label for="username">用户名</label>
-            <input type="text" id="username" name="username" required>
+            <form id="registerForm">
+                <input type="hidden" name="csrf_token" id="csrf_token" value="{{ csrf_token }}">
+                
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="username" name="username" placeholder="3-20个字符" required>
+                        <span class="icon">👤</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="password" name="password" placeholder="请设置密码" required>
+                        <span class="icon">🔒</span>
+                    </div>
+                    <div class="password-strength">
+                        <div class="password-strength-bar" id="strengthBar"></div>
+                    </div>
+                    <div class="password-hint" id="strengthHint">密码强度指示</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">确认密码</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="confirm_password" name="confirm_password" placeholder="请再次输入密码" required>
+                        <span class="icon">🔐</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-register">注 册</button>
+            </form>
+
+            <div id="msg" class="message"></div>
+
+            <div class="login-link">
+                <a href="/frontend/login.html">← 已有账号？返回登录</a>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="password">密码</label>
-            <input type="password" id="password" name="password" required>
-        </div>
-        <div class="form-group">
-            <label for="confirm_password">确认密码</label>
-            <input type="password" id="confirm_password" name="confirm_password" required>
-        </div>
-        <button type="submit" class="btn-register">注册</button>
-    </form>
-    <div id="msg" class="message"></div>
-    <div class="login-link">
-        <a href="/frontend/login.html">已有账号？去登录</a>
     </div>
-    </div>
-</div>
 
-<script>
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
-        const confirm_password = document.getElementById('confirm_password').value;
-        const csrf_token = document.getElementById('csrf_token').value;
-        const msgEl = document.getElementById('msg');
-
-        if (!username || username.length < 3 || username.length > 20) {
-            msgEl.textContent = '用户名长度必须在3-20个字符之间';
-            msgEl.className = 'message';
-            return;
-        }
-
-        if (password !== confirm_password) {
-            msgEl.textContent = '两次输入的密码不一致';
-            msgEl.className = 'message';
-            return;
-        }
-        
-        msgEl.textContent = '正在注册...';
-        msgEl.className = 'message';
-
-        try {
-            const response = await fetch('/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    username: username,
-                    password: password,
-                    csrf_token: csrf_token
-                })
-            });
-
-            const result = await response.json();
+    <script>
+        // 密码强度检测
+        document.getElementById('password').addEventListener('input', function() {
+            const password = this.value;
+            const strengthBar = document.getElementById('strengthBar');
+            const strengthHint = document.getElementById('strengthHint');
             
-            if (result.code === 200) {
-                msgEl.textContent = '注册成功！即将跳转登录页...';
-                msgEl.className = 'message success';
-                setTimeout(() => {
-                    window.location.href = '/frontend/login.html';
-                }, 2000);
-            } else {
-                msgEl.textContent = result.message || '注册失败';
-                msgEl.className = 'message';
+            strengthBar.className = 'password-strength-bar';
+            
+            if (password.length === 0) {
+                strengthHint.textContent = '密码强度指示';
+                return;
             }
-        } catch (error) {
-            msgEl.textContent = '网络请求失败，请稍后再试';
-            msgEl.className = 'message';
-        }
-    });
-</script>
+            
+            let strength = 0;
+            if (password.length >= 6) strength++;
+            if (password.length >= 10) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            if (strength <= 2) {
+                strengthBar.classList.add('weak');
+                strengthHint.textContent = '密码强度：弱';
+            } else if (strength <= 3) {
+                strengthBar.classList.add('medium');
+                strengthHint.textContent = '密码强度：中等';
+            } else {
+                strengthBar.classList.add('strong');
+                strengthHint.textContent = '密码强度：强';
+            }
+        });
 
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+            const csrf_token = document.getElementById('csrf_token').value;
+            const msgEl = document.getElementById('msg');
+
+            // 重置消息状态
+            msgEl.className = 'message';
+
+            if (!username || username.length < 3 || username.length > 20) {
+                showMessage('用户名长度必须在3-20个字符之间', 'error');
+                return;
+            }
+
+            if (!password || password.length < 1) {
+                showMessage('请输入密码', 'error');
+                return;
+            }
+
+            if (password !== confirm_password) {
+                showMessage('两次输入的密码不一致', 'error');
+                return;
+            }
+            
+            showMessage('正在注册...', 'loading');
+
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        csrf_token: csrf_token
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.code === 200) {
+                    showMessage('🎉 注册成功！即将跳转登录页...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/frontend/login.html';
+                    }, 2000);
+                } else {
+                    showMessage(result.message || '注册失败，请重试', 'error');
+                }
+            } catch (error) {
+                showMessage('网络请求失败，请检查网络连接', 'error');
+            }
+        });
+
+        function showMessage(text, type) {
+            const msgEl = document.getElementById('msg');
+            msgEl.textContent = text;
+            msgEl.className = 'message ' + type;
+        }
+    </script>
 </body>
 </html>

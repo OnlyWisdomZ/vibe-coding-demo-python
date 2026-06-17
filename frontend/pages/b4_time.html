@@ -73,7 +73,12 @@
                         name: '入住人次',
                         type: 'bar',
                         data: checkinCounts,
-                        itemStyle: { color: '#fac858' },
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#fac858' },
+                                { offset: 1, color: '#fef4d6' }
+                            ])
+                        },
                         barMaxWidth: 50
                     }
                 ] : [
@@ -84,7 +89,13 @@
                         smooth: true,
                         itemStyle: { color: '#5470c6' },
                         lineStyle: { width: 3 },
-                        symbolSize: 8
+                        symbolSize: 8,
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(84,112,198,0.4)' },
+                                { offset: 1, color: 'rgba(84,112,198,0.05)' }
+                            ])
+                        }
                     }
                 ]
             }, true);

@@ -15,7 +15,7 @@
         .btn-download:hover { background-color: #85ce61; }
     </style>
     <script src="../static/echarts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
+    <script src="../static/echarts-wordcloud.min.js"></script>
     <script src="../static/axios.min.js"></script>
 </head>
 <body>
@@ -96,32 +96,38 @@
 
             // 词云图绘制函数
             function drawCloud(chartInstance, wordData, colorRange) {
+                // 确保显示至少80个词
+                const displayData = wordData.slice(0, 80);
                 chartInstance.setOption({
                     tooltip: {},
                     series: [{
                         type: 'wordCloud',
                         shape: 'square',
                         left: 'center', top: 'center', width: '100%', height: '100%',
-                        sizeRange: [12, 80],
-                        rotationRange: [0, 90],
+                        sizeRange: [12, 50], // 缩小字体以适应更多词语
+                        rotationRange: [0, 0], // 不旋转以节省空间
                         rotationStep: 90,
-                        gridSize: 8,
+                        gridSize: 4, // 减小网格以更密集
                         textStyle: {
                             color: function () {
                                 return colorRange[Math.floor(Math.random() * colorRange.length)];
                             }
                         },
-                        data: wordData
+                        data: displayData
                     }]
                 });
             }
 
+            // 词云配色（积极/消极共用，保持一致）
+            const cloudColors = ['#73a373', '#7bc8a4', '#4b5cc4', '#5e8579'];
+
             // 积极词云
-            drawCloud(c3, data.pos_words, ['#73a373', '#7bc8a4', '#4b5cc4', '#5e8579']);
-            
+            drawCloud(c3, data.pos_words, cloudColors);
+
             // 消极词云
-            const filteredNegWords = data.neg_words.filter(item => item.name !== '不错');
-            drawCloud(c4, filteredNegWords, ['#d87c7c', '#919e8b', '#d7ab82', '#6e7074']);
+            const negExcludeWords = ['不错', '前台', '服务', '早餐', '非常'];
+            const filteredNegWords = data.neg_words.filter(item => !negExcludeWords.includes(item.name));
+            drawCloud(c4, filteredNegWords, cloudColors);
 
             window.addEventListener('resize', () => {
                 c1.resize(); c2.resize(); c3.resize(); c4.resize();

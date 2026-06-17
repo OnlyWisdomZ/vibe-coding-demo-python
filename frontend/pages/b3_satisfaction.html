@@ -12,6 +12,7 @@
         .highlight { color: #ee6666; font-weight: bold; font-size: 24px; margin: 0 5px; }
     </style>
     <script src="../static/echarts.min.js"></script>
+    <script src="../static/echarts-liquidfill.min.js"></script>
     <script src="../static/axios.min.js"></script>
 </head>
 <body>
@@ -30,34 +31,44 @@
         const res = await axios.get('http://127.0.0.1:8000/api/analysis/b3_satisfaction');
         const data = res.data.data;
 
-        document.getElementById('stats').innerHTML = `
-            本次分析共计覆盖 <span class="highlight">${data.total}</span> 条真实消费者评价
-        `;
+        document.getElementById('stats').innerHTML = '';
+
+        const dist = [
+            { value: data.distribution.find(d=>d.name.includes("非常满意")).value, name: '非常满意' },
+            { value: data.distribution.find(d=>d.name.includes("满意(好评)")).value, name: '满意' },
+            { value: data.distribution.find(d=>d.name.includes("中性")).value, name: '中性/一般' },
+            { value: data.distribution.find(d=>d.name.includes("不满意")).value, name: '不满意' }
+        ];
+
+        const total = data.total;
+        const satisfiedCount = dist[0].value + dist[1].value;
+        const rate = satisfiedCount / total;
 
         c1.setOption({
-            tooltip: { trigger: 'item', formatter: '{b}: {c} 条 ({d}%)' },
-            legend: { orient: 'vertical', left: 'left' },
-            series: [
-                {
-                    name: '满意度',
-                    type: 'pie',
-                    radius: ['40%', '70%'],
-                    avoidLabelOverlap: false,
-                    itemStyle: {
-                        borderRadius: 10,
-                        borderColor: '#fff',
-                        borderWidth: 2
+            series: [{
+                type: 'liquidFill',
+                data: [rate, rate - 0.02, rate - 0.05],
+                radius: '70%',
+                color: ['#73c0de', '#5470c6', '#91cc75'],
+                backgroundStyle: { color: 'rgba(0,0,0,0.05)', borderColor: '#73c0de', borderWidth: 2 },
+                outline: { borderDistance: 4, itemStyle: { borderColor: '#73c0de', borderWidth: 3 } },
+                label: {
+                    formatter: function() {
+                        return '{percent|' + (rate * 100).toFixed(1) + '%}\n{text|整体满意率}';
                     },
-                    label: { show: true, formatter: '{b}\n{d}%' },
-                    data: [
-                        { value: data.distribution.find(d=>d.name.includes("非常满意")).value, name: '非常满意', itemStyle: {color: '#91cc75'} },
-                        { value: data.distribution.find(d=>d.name.includes("满意(好评)")).value, name: '满意', itemStyle: {color: '#73c0de'} },
-                        { value: data.distribution.find(d=>d.name.includes("中性")).value, name: '中性/一般', itemStyle: {color: '#fac858'} },
-                        { value: data.distribution.find(d=>d.name.includes("不满意")).value, name: '不满意', itemStyle: {color: '#ee6666'} }
-                    ]
+                    rich: {
+                        percent: { fontSize: 36, fontWeight: 'bold', color: '#fff', lineHeight: 50, textShadowColor: 'rgba(0,0,0,0.3)', textShadowBlur: 4 },
+                        text: { fontSize: 16, color: 'rgba(255,255,255,0.85)', lineHeight: 28 }
+                    }
                 }
-            ]
+            }]
         });
+
+        document.getElementById('stats').innerHTML = `
+            本次分析共计覆盖 <span class="highlight">${total}</span> 条评价，
+            其中满意 <span class="highlight">${satisfiedCount}</span> 条，
+            中性 ${dist[2].value} 条，不满意 ${dist[3].value} 条
+        `;
 
         window.addEventListener('resize', () => { c1.resize(); });
     }

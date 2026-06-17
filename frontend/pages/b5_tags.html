@@ -38,41 +38,51 @@
         // 这里的原始数据在后端是按从大到小排列的
         // 为了让条形图数值最大的在最上面，需要将数组反转
         // 使用扩展运算符深拷贝，避免原地改变引用导致任何对不上的情况
-        const goodData = [...data.good_tags].reverse();
+        const goodData = data.good_tags.slice(0, 10);
+        const maxGood = goodData[0].value;
         c1.setOption({
-            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-            xAxis: { type: 'value' },
-            yAxis: { 
-                type: 'category', 
-                data: goodData.map(d=>d.name),
-                axisLabel: { interval: 0 } // 强制显示所有标签，防止 echarts 自动隐藏重叠文本
+            tooltip: { trigger: 'item' },
+            radar: {
+                indicator: goodData.map(d => ({ name: d.name, max: maxGood * 1.2 })),
+                shape: 'polygon',
+                splitNumber: 4,
+                axisName: { color: '#555', fontSize: 12 },
+                splitArea: { areaStyle: { color: ['rgba(145,204,117,0.05)', 'rgba(145,204,117,0.1)'] } },
+                splitLine: { lineStyle: { color: 'rgba(145,204,117,0.3)' } }
             },
             series: [{
-                name: '出现频次',
-                type: 'bar',
-                data: goodData.map(d=>d.value),
-                itemStyle: { color: '#91cc75' },
-                label: { show: true, position: 'right' }
+                type: 'radar',
+                data: [{
+                    value: goodData.map(d => d.value),
+                    name: '出现频次',
+                    areaStyle: { color: 'rgba(145,204,117,0.4)' },
+                    lineStyle: { color: '#91cc75', width: 2 },
+                    itemStyle: { color: '#91cc75' },
+                    symbol: 'circle',
+                    symbolSize: 6
+                }]
             }]
         });
 
-        const badData = [...data.bad_tags].reverse();
+        const badData = data.bad_tags;
         c2.setOption({
-            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-            grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-            xAxis: { type: 'value' },
-            yAxis: { 
-                type: 'category', 
-                data: badData.map(d=>d.name),
-                axisLabel: { interval: 0 } // 强制显示所有标签
-            },
+            tooltip: { formatter: function(info) { return info.name + ': ' + info.value + '次'; } },
             series: [{
-                name: '出现频次',
-                type: 'bar',
-                data: badData.map(d=>d.value),
-                itemStyle: { color: '#ee6666' },
-                label: { show: true, position: 'right' }
+                type: 'treemap',
+                width: '92%',
+                height: '85%',
+                roam: false,
+                nodeClick: false,
+                breadcrumb: { show: false },
+                label: { show: true, formatter: '{b}\n{c}次', fontSize: 12, overflow: 'break', lineOverflow: 'truncate' },
+                upperLabel: { show: false },
+                itemStyle: { borderColor: '#fff', borderWidth: 2, gapWidth: 2 },
+                levels: [{
+                    colorSaturation: [0.3, 0.7],
+                    itemStyle: { borderColorSaturation: 0.5, gapWidth: 3, borderWidth: 2 }
+                }],
+                data: badData.map(d => ({ name: d.name, value: d.value })),
+                color: ['#ee6666', '#f5a0a0', '#d94e4e', '#ff8c8c', '#c23531', '#e67373']
             }]
         });
 

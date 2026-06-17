@@ -22,9 +22,27 @@
             const res = await axios.get(API + '/stats');
             const data = res.data.data.length_distribution;
             myChart1.setOption({
-                tooltip: { trigger: 'item' },
+                tooltip: { trigger: 'item', formatter: '{b}: {c}条 ({d}%)' },
+                legend: { bottom: '2%', type: 'scroll', textStyle: { fontSize: 12 } },
+                color: ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272','#fc8452','#9a60b4'],
                 series: [{
-                    type: 'pie', radius: '50%',
+                    type: 'pie',
+                    radius: ['15%', '60%'],
+                    center: ['50%', '45%'],
+                    roseType: 'area',
+                    itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 3 },
+                    label: {
+                        show: true,
+                        formatter: '{b}\n{c}条',
+                        fontSize: 12,
+                        color: '#555'
+                    },
+                    labelLine: { length: 15, length2: 20, smooth: true },
+                    emphasis: {
+                        itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.2)' }
+                    },
+                    animationType: 'scale',
+                    animationEasing: 'elasticOut',
                     data: data.map(item => ({name: item.range, value: item.count}))
                 }]
             });
